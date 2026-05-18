@@ -252,6 +252,15 @@ class App {
       });
     }
 
+    const btnAddMember = document.getElementById('btn-dashboard-add-member');
+    if (btnAddMember) {
+      btnAddMember.addEventListener('click', () => {
+        if (!this.activeFamily || !this.activeFamily.members.length) return;
+        const rootMember = this.activeFamily.members.find(m => m.id === this.activeFamily.rootMemberId) || this.activeFamily.members[0];
+        this.openAddRelativeModal(rootMember);
+      });
+    }
+
     const btnInvite = document.getElementById('btn-dashboard-invite');
     if (btnInvite) {
       btnInvite.addEventListener('click', () => {
