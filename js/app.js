@@ -332,34 +332,6 @@ class App {
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     if (btnZoomReset) btnZoomReset.addEventListener('click', () => this.treeRenderer.resetZoom());
 
-  openCropperModal(imageSrc) {
-    const imageToCrop = document.getElementById('image-to-crop');
-    imageToCrop.src = imageSrc;
-    
-    ModalManager.openModal('modal-crop');
-
-    if (this.cropperInstance) {
-      this.cropperInstance.destroy();
-    }
-
-    // Inicializa o Cropper após a imagem carregar no modal
-    setTimeout(() => {
-      this.cropperInstance = new Cropper(imageToCrop, {
-        aspectRatio: 1,
-        viewMode: 1,
-        dragMode: 'move',
-        autoCropArea: 0.8,
-        restore: false,
-        guides: true,
-        center: true,
-        highlight: false,
-        cropBoxMovable: true,
-        cropBoxResizable: true,
-        toggleDragModeOnDblclick: false,
-      });
-    }, 200);
-  }
-
     // Upload de Foto Local + Cropper.js
     const fileInput = document.getElementById('member-file-upload');
     if (fileInput) {
@@ -780,6 +752,34 @@ class App {
     });
 
     ModalManager.openModal('modal-invite');
+  }
+
+  openCropperModal(imageSrc) {
+    const imageToCrop = document.getElementById('image-to-crop');
+    imageToCrop.src = imageSrc;
+    
+    ModalManager.openModal('modal-crop');
+
+    if (this.cropperInstance) {
+      this.cropperInstance.destroy();
+    }
+
+    // Inicializa o Cropper após a imagem carregar no modal
+    setTimeout(() => {
+      this.cropperInstance = new Cropper(imageToCrop, {
+        aspectRatio: 1,
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.8,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+      });
+    }, 200);
   }
 }
 
