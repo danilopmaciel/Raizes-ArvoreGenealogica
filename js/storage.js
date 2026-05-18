@@ -1,6 +1,7 @@
 // Módulo de Gerenciamento de Armazenamento (LocalStorage), Dados Demo e Sincronização Supabase
 
 import supabaseAdapterInstance from './supabase.js';
+import firebaseAdapterInstance from './firebase.js';
 
 const STORAGE_KEY_USER = 'raizes_current_user';
 const STORAGE_KEY_FAMILIES = 'raizes_families';
@@ -118,6 +119,9 @@ class StorageManager {
     if (supabaseAdapterInstance.isConfigured()) {
       families.forEach(f => supabaseAdapterInstance.syncFamily(f));
     }
+    if (firebaseAdapterInstance.isConfigured()) {
+      families.forEach(f => firebaseAdapterInstance.syncFamily(f));
+    }
   }
 
   static getActiveFamily() {
@@ -138,6 +142,16 @@ class StorageManager {
   static async syncFromSupabase() {
     if (supabaseAdapterInstance.isConfigured()) {
       const families = await supabaseAdapterInstance.loadFamilies();
+      if (families && families.length > 0) {
+        localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+        const active = this.getActiveFamily();
+        if (!active && families.length > 0) {
+          this.setActiveFamily(families[0].id);
+        }
+      }
+    }
+    if (firebaseAdapterInstance.isConfigured()) {
+      const families = await firebaseAdapterInstance.loadAllFamilies();
       if (families && families.length > 0) {
         localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
         const active = this.getActiveFamily();
@@ -202,6 +216,9 @@ class StorageManager {
       this.saveFamilies(families);
       if (supabaseAdapterInstance.isConfigured()) {
         supabaseAdapterInstance.syncFamily(updatedFamily);
+      }
+      if (firebaseAdapterInstance.isConfigured()) {
+        firebaseAdapterInstance.syncFamily(updatedFamily);
       }
     }
   }

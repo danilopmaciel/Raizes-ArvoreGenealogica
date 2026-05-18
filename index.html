@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <link rel="icon" type="image/png" href="assets/logo.png">
 </head>
 <body>
@@ -20,7 +22,7 @@
       <span class="navbar-title">Raízes</span>
     </div>
     <div class="navbar-user">
-      <button id="navbar-supabase-btn" class="btn btn-secondary" title="Configurar Banco de Dados (Supabase)">⚙️ Supabase</button>
+      <button id="navbar-supabase-btn" class="btn btn-secondary" title="Configurar Banco de Dados na Nuvem">⚙️ Nuvem (Firebase)</button>
       <div id="navbar-user-profile" class="user-profile" style="display: none;">
         <div class="user-avatar"></div>
         <span class="user-name">Usuário</span>
@@ -407,25 +409,25 @@
     </div>
   </div>
 
-  <!-- Modal: Configuração do Supabase -->
+  <!-- Modal: Configuração da Nuvem (Firebase / Supabase) -->
   <div id="modal-supabase" class="modal-backdrop">
-    <div class="modal-card" style="max-width: 550px;">
+    <div class="modal-card" style="max-width: 600px;">
       <div class="modal-header">
-        <h3>Configuração do Banco de Dados (Supabase)</h3>
+        <h3>Configuração do Banco de Dados na Nuvem</h3>
         <button class="btn-close btn-close-modal">✕</button>
       </div>
       <form id="form-supabase">
         <div class="modal-body">
-          <p style="font-size: 0.95rem; line-height: 1.5;">Conecte seu próprio projeto do Supabase para ativar persistência em nuvem e sincronização em tempo real entre dispositivos.</p>
+          <p style="font-size: 0.95rem; line-height: 1.5;">Ative a persistência na nuvem e sincronização em tempo real. O sistema está configurado para utilizar o <strong>Firebase Firestore</strong> gratuitamente.</p>
           
           <div class="form-group">
-            <label for="input-supabase-url">URL do Projeto (Supabase URL)</label>
-            <input type="url" id="input-supabase-url" class="form-control" placeholder="https://xyz.supabase.co" required>
+            <label for="input-firebase-apikey">Chave de API (Firebase API Key)</label>
+            <input type="text" id="input-firebase-apikey" class="form-control" value="AIzaSyCXE1vJSroJJDFlOaFI7SmjQJr0OWj1kiQ" placeholder="AIzaSy..." required>
           </div>
 
           <div class="form-group">
-            <label for="input-supabase-key">Chave Pública (Anon Key)</label>
-            <input type="text" id="input-supabase-key" class="form-control" placeholder="eyJhbGciOi..." required>
+            <label for="input-firebase-projectid">ID do Projeto (Firebase Project ID)</label>
+            <input type="text" id="input-firebase-projectid" class="form-control" value="raizes-9e7b7" placeholder="raizes-xyz" required>
           </div>
 
           <div id="supabase-status-box" style="padding: 1rem; border-radius: var(--radius-md); background: var(--bg-primary); border: 1px solid var(--border-glass); display: flex; align-items: center; justify-content: space-between;">
@@ -433,8 +435,8 @@
             <span id="supabase-status-badge" style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); font-size: 0.8rem; font-weight: 700; background: #ca8a04; color: #fef08a;">Não Configurado (Usando LocalStorage)</span>
           </div>
 
-          <p style="font-size: 0.85rem; color: var(--text-muted);">
-            💡 <strong>Dica:</strong> Certifique-se de executar o arquivo de migração <code>supabase/migrations/20260518000000_init_raizes.sql</code> no painel SQL do Supabase antes de conectar.
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">
+            🔥 <strong>Firebase Firestore:</strong> Conectado à instância <code>raizes-9e7b7</code> (us-central / nam5) em modo de teste ativo.
           </p>
         </div>
         <div class="modal-footer">
