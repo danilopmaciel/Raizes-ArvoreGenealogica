@@ -5,6 +5,7 @@ import StorageManager from './storage.js';
 import FamilyManager from './family.js';
 import ModalManager from './modal.js';
 import TreeRenderer from './tree.js';
+import supabaseAdapterInstance from './supabase.js';
 
 class App {
   constructor() {
@@ -12,32 +13,29 @@ class App {
     this.currentUser = null;
     this.activeFamily = null;
     this.treeRenderer = null;
-    this.selectedMemberForAdd = null; // Membro selecionado ao clicar em "+"
-    this.editingMember = null; // Membro em edição
-    this.pendingInviteCode = null; // Código de convite pendente da URL ou input
-    this.pendingMemberId = null; // ID de membro específico para vinculação de convite
+    this.selectedMemberForAdd = null;
+    this.editingMember = null;
+    this.pendingInviteCode = null;
+    this.pendingMemberId = null;
+    this.cropperInstance = null; // Instância do Cropper.js
 
     document.addEventListener('DOMContentLoaded', () => this.init());
   }
 
-  init() {
-    // Inicializa modais
+  async init() {
     ModalManager.init();
 
-    // Inicializa renderizador da árvore
     this.treeRenderer = new TreeRenderer('tree-container', 
       (member) => this.openEditMemberModal(member),
       (member) => this.openAddRelativeModal(member)
     );
 
-    // Verifica parâmetros de URL (Convite e MemberId)
     const urlParams = new URLSearchParams(window.location.search);
     const inviteParam = urlParams.get('invite');
     const memberParam = urlParams.get('memberId');
     if (inviteParam) {
       this.pendingInviteCode = inviteParam;
       this.pendingMemberId = memberParam || null;
-      // Limpa a URL para ficar limpa
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
@@ -46,6 +44,16 @@ class App {
 
     // Configura Event Listeners Globais
     this.setupEventListeners();
+
+    // Sincroniza do Supabase se já estiver configurado
+    if (supabaseAdapterInstance.isConfigured()) {
+      this.updateSupabaseUI();
+      await StorageManager.syncFromSupabase();
+      if (this.currentUser) {
+        this.activeFamily = StorageManager.getActiveFamily();
+        this.renderTree();
+      }
+    }
   }
 
   onAuthStateChanged(user) {
@@ -57,7 +65,6 @@ class App {
       return;
     }
 
-    // Se temos um convite pendente, processa-o com o memberId se houver
     if (this.pendingInviteCode) {
       const code = this.pendingInviteCode;
       const memId = this.pendingMemberId;
@@ -67,7 +74,6 @@ class App {
       return;
     }
 
-    // Carrega família ativa do usuário
     this.activeFamily = StorageManager.getActiveFamily();
 
     if (this.activeFamily) {
@@ -99,6 +105,33 @@ class App {
       if (userProfileEl) userProfileEl.style.display = 'none';
       if (loginBtnEl) loginBtnEl.style.display = 'inline-flex';
       if (logoutBtnEl) logoutBtnEl.style.display = 'none';
+    }
+  }
+
+  updateSupabaseUI() {
+    const badge = document.getElementById('supabase-status-badge');
+    const btnDisconnect = document.getElementById('btn-supabase-disconnect');
+    const urlInput = document.getElementById('input-supabase-url');
+    const keyInput = document.getElementById('input-supabase-key');
+
+    if (supabaseAdapterInstance.isConfigured()) {
+      if (badge) {
+        badge.textContent = 'Conectado e Sincronizado';
+        badge.style.background = '#15803d';
+        badge.style.color = '#bbf7d0';
+      }
+      if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
+      if (urlInput) urlInput.value = localStorage.getItem('raizes_supabase_url') || '';
+      if (keyInput) keyInput.value = localStorage.getItem('raizes_supabase_key') || '';
+    } else {
+      if (badge) {
+        badge.textContent = 'Não Configurado (Usando LocalStorage)';
+        badge.style.background = '#ca8a04';
+        badge.style.color = '#fef08a';
+      }
+      if (btnDisconnect) btnDisconnect.style.display = 'none';
+      if (urlInput) urlInput.value = '';
+      if (keyInput) keyInput.value = '';
     }
   }
 
@@ -141,7 +174,6 @@ class App {
       });
     }
 
-    // Botão de Demonstração Interativa
     const btnDemo = document.getElementById('btn-demo');
     if (btnDemo) {
       btnDemo.addEventListener('click', () => {
@@ -154,12 +186,58 @@ class App {
       });
     }
 
-    // Logout
     const btnLogout = document.getElementById('navbar-logout-btn');
     if (btnLogout) {
       btnLogout.addEventListener('click', () => {
         AuthManager.logout();
         ModalManager.showToast('Você saiu da conta.', 'success');
+      });
+    }
+
+    // Supabase Config Actions
+    const btnSupabaseNav = document.getElementById('navbar-supabase-btn');
+    if (btnSupabaseNav) {
+      btnSupabaseNav.addEventListener('click', () => {
+        this.updateSupabaseUI();
+        ModalManager.openModal('modal-supabase');
+      });
+    }
+
+    const formSupabase = document.getElementById('form-supabase');
+    if (formSupabase) {
+      formSupabase.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = document.getElementById('input-supabase-url').value.trim();
+        const key = document.getElementById('input-supabase-key').value.trim();
+        try {
+          ModalManager.showToast('Conectando ao Supabase...', 'success');
+          await supabaseAdapterInstance.configure(url, key);
+          this.updateSupabaseUI();
+          
+          // Sincroniza dados locais para a nuvem e vice-versa
+          const localFamilies = StorageManager.getFamilies();
+          for (const f of localFamilies) {
+            await supabaseAdapterInstance.syncFamily(f);
+          }
+          await StorageManager.syncFromSupabase();
+          this.activeFamily = StorageManager.getActiveFamily();
+          this.renderTree();
+
+          ModalManager.closeModal('modal-supabase');
+          ModalManager.showToast('Banco de dados conectado e sincronizado com sucesso!', 'success');
+        } catch (err) {
+          ModalManager.showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const btnSupabaseDisconnect = document.getElementById('btn-supabase-disconnect');
+    if (btnSupabaseDisconnect) {
+      btnSupabaseDisconnect.addEventListener('click', () => {
+        supabaseAdapterInstance.disconnect();
+        this.updateSupabaseUI();
+        ModalManager.closeModal('modal-supabase');
+        ModalManager.showToast('Desconectado do Supabase. Usando armazenamento local.', 'success');
       });
     }
 
@@ -178,7 +256,6 @@ class App {
       });
     }
 
-    // Formulário Criar Família
     const formCreateFamily = document.getElementById('form-create-family');
     if (formCreateFamily) {
       formCreateFamily.addEventListener('submit', (e) => {
@@ -197,7 +274,6 @@ class App {
       });
     }
 
-    // Formulário Ingressar na Família
     const formJoinFamily = document.getElementById('form-join-family');
     if (formJoinFamily) {
       formJoinFamily.addEventListener('submit', (e) => {
@@ -208,7 +284,6 @@ class App {
       });
     }
 
-    // Botão de Convite no Dashboard
     const btnInvite = document.getElementById('btn-dashboard-invite');
     if (btnInvite) {
       btnInvite.addEventListener('click', () => {
@@ -234,7 +309,6 @@ class App {
       });
     }
 
-    // Código da Família (Clique para abrir convite)
     const badgeCode = document.getElementById('badge-family-code');
     if (badgeCode) {
       badgeCode.addEventListener('click', () => {
@@ -243,7 +317,6 @@ class App {
       });
     }
 
-    // Botão Copiar Link de Convite
     const btnCopyLink = document.getElementById('btn-copy-invite-link');
     if (btnCopyLink) {
       btnCopyLink.addEventListener('click', () => {
@@ -254,7 +327,6 @@ class App {
       });
     }
 
-    // Controle de Zoom / Pan no Dashboard
     const btnZoomIn = document.getElementById('btn-zoom-in');
     if (btnZoomIn) btnZoomIn.addEventListener('click', () => this.treeRenderer.zoomIn());
 
@@ -264,7 +336,7 @@ class App {
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     if (btnZoomReset) btnZoomReset.addEventListener('click', () => this.treeRenderer.resetZoom());
 
-    // Upload de Foto Local (FileReader)
+    // Upload de Foto Local + Cropper.js
     const fileInput = document.getElementById('member-file-upload');
     if (fileInput) {
       fileInput.addEventListener('change', (e) => {
@@ -272,23 +344,89 @@ class App {
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            document.getElementById('member-photo-preview').src = event.target.result;
-            ModalManager.showToast('Foto carregada com sucesso!', 'success');
+            const imageToCrop = document.getElementById('image-to-crop');
+            imageToCrop.src = event.target.result;
+            
+            ModalManager.openModal('modal-crop');
+
+            if (this.cropperInstance) {
+              this.cropperInstance.destroy();
+            }
+
+            // Inicializa o Cropper após a imagem carregar no modal
+            setTimeout(() => {
+              this.cropperInstance = new Cropper(imageToCrop, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 0.8,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+              });
+            }, 200);
           };
           reader.readAsDataURL(file);
+          fileInput.value = ''; // Limpa input para permitir re-upload do mesmo arquivo
         }
       });
     }
 
-    // Previews de Links na Nuvem (Google Photos, OneDrive, iCloud)
+    // Controles do Cropper.js
+    document.getElementById('btn-crop-zoom-in')?.addEventListener('click', () => this.cropperInstance?.zoom(0.1));
+    document.getElementById('btn-crop-zoom-out')?.addEventListener('click', () => this.cropperInstance?.zoom(-0.1));
+    document.getElementById('btn-crop-rotate')?.addEventListener('click', () => this.cropperInstance?.rotate(45));
+    document.getElementById('btn-crop-reset')?.addEventListener('click', () => this.cropperInstance?.reset());
+
+    const btnConfirmCrop = document.getElementById('btn-confirm-crop');
+    if (btnConfirmCrop) {
+      btnConfirmCrop.addEventListener('click', () => {
+        if (!this.cropperInstance) return;
+        const canvas = this.cropperInstance.getCroppedCanvas({
+          width: 300,
+          height: 300,
+          imageSmoothingEnabled: true,
+          imageSmoothingQuality: 'high',
+        });
+
+        if (canvas) {
+          const croppedDataUrl = canvas.toDataURL('image/webp', 0.9);
+          document.getElementById('member-photo-preview').src = croppedDataUrl;
+          ModalManager.closeModal('modal-crop');
+          ModalManager.showToast('Foto ajustada e recortada com sucesso!', 'success');
+        }
+      });
+    }
+
+    // Previews e Validação Inteligente de Links na Nuvem (Google Photos, OneDrive, iCloud)
     ['member-gphotos-url', 'member-onedrive-url', 'member-icloud-url'].forEach(id => {
       const input = document.getElementById(id);
       if (input) {
-        input.addEventListener('change', (e) => {
+        input.addEventListener('input', (e) => {
           const url = e.target.value.trim();
-          if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          const warningBox = document.getElementById('cloud-warning-box');
+
+          if (!url) {
+            if (warningBox) warningBox.style.display = 'none';
+            return;
+          }
+
+          // Verifica se é uma página web de compartilhamento (GPhotos, OneDrive, iCloud)
+          const isSharePage = url.includes('photos.app.goo.gl') || 
+                              url.includes('photos.google.com/share') || 
+                              url.includes('1drv.ms') || 
+                              url.includes('icloud.com/photos');
+
+          if (isSharePage) {
+            if (warningBox) warningBox.style.display = 'block';
+          } else if (url.startsWith('http://') || url.startsWith('https://')) {
+            if (warningBox) warningBox.style.display = 'none';
             document.getElementById('member-photo-preview').src = url;
-            ModalManager.showToast('Link de imagem vinculado!', 'success');
+            ModalManager.showToast('Link de imagem direta vinculado!', 'success');
           }
         });
       }
@@ -312,7 +450,6 @@ class App {
       });
     });
 
-    // Toggle Status de Vida (Vivo vs Falecido)
     const statusSelect = document.getElementById('member-status');
     const deathGroup = document.getElementById('group-member-death');
     if (statusSelect && deathGroup) {
@@ -325,7 +462,6 @@ class App {
       });
     }
 
-    // Formulário Adicionar/Editar Membro
     const formMember = document.getElementById('form-member');
     if (formMember) {
       formMember.addEventListener('submit', (e) => {
@@ -334,7 +470,6 @@ class App {
       });
     }
 
-    // Ações de Conflito de Ingressão (Mesclar vs Aninhar)
     const cardMerge = document.getElementById('conflict-card-merge');
     const cardNest = document.getElementById('conflict-card-nest');
     if (cardMerge && cardNest) {
@@ -453,6 +588,9 @@ class App {
     const inviteAlert = document.getElementById('invite-alert-box');
     if (inviteAlert) inviteAlert.style.display = 'none';
 
+    const cloudWarning = document.getElementById('cloud-warning-box');
+    if (cloudWarning) cloudWarning.style.display = 'none';
+
     const statusSelect = document.getElementById('member-status');
     if (statusSelect) statusSelect.value = 'vivo';
     const deathGroup = document.getElementById('group-member-death');
@@ -491,6 +629,9 @@ class App {
     if (memberTypeSection) memberTypeSection.style.display = 'none';
     const inviteAlert = document.getElementById('invite-alert-box');
     if (inviteAlert) inviteAlert.style.display = 'none';
+
+    const cloudWarning = document.getElementById('cloud-warning-box');
+    if (cloudWarning) cloudWarning.style.display = 'none';
 
     const statusSelect = document.getElementById('member-status');
     const deathGroup = document.getElementById('group-member-death');

@@ -1,4 +1,6 @@
-// Módulo de Gerenciamento de Armazenamento (LocalStorage) e Dados Demo
+// Módulo de Gerenciamento de Armazenamento (LocalStorage), Dados Demo e Sincronização Supabase
+
+import supabaseAdapterInstance from './supabase.js';
 
 const STORAGE_KEY_USER = 'raizes_current_user';
 const STORAGE_KEY_FAMILIES = 'raizes_families';
@@ -113,6 +115,9 @@ class StorageManager {
 
   static saveFamilies(families) {
     localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+    if (supabaseAdapterInstance.isConfigured()) {
+      families.forEach(f => supabaseAdapterInstance.syncFamily(f));
+    }
   }
 
   static getActiveFamily() {
@@ -130,9 +135,21 @@ class StorageManager {
     }
   }
 
+  static async syncFromSupabase() {
+    if (supabaseAdapterInstance.isConfigured()) {
+      const families = await supabaseAdapterInstance.loadFamilies();
+      if (families && families.length > 0) {
+        localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+        const active = this.getActiveFamily();
+        if (!active && families.length > 0) {
+          this.setActiveFamily(families[0].id);
+        }
+      }
+    }
+  }
+
   static loadDemoFamily() {
     let families = this.getFamilies();
-    // Verifica se já existe a demo
     const existingIndex = families.findIndex(f => f.id === DEMO_FAMILY.id);
     if (existingIndex !== -1) {
       families[existingIndex] = DEMO_FAMILY;
@@ -183,6 +200,9 @@ class StorageManager {
     if (index !== -1) {
       families[index] = updatedFamily;
       this.saveFamilies(families);
+      if (supabaseAdapterInstance.isConfigured()) {
+        supabaseAdapterInstance.syncFamily(updatedFamily);
+      }
     }
   }
 

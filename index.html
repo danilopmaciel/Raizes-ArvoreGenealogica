@@ -6,6 +6,9 @@
   <title>Raízes — Árvore Genealógica Premium</title>
   <meta name="description" content="Crie, gerencie e compartilhe sua árvore genealógica de forma interativa e elegante. Conecte gerações com o Raízes.">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="icon" type="image/png" href="assets/logo.png">
 </head>
 <body>
@@ -17,6 +20,7 @@
       <span class="navbar-title">Raízes</span>
     </div>
     <div class="navbar-user">
+      <button id="navbar-supabase-btn" class="btn btn-secondary" title="Configurar Banco de Dados (Supabase)">⚙️ Supabase</button>
       <div id="navbar-user-profile" class="user-profile" style="display: none;">
         <div class="user-avatar"></div>
         <span class="user-name">Usuário</span>
@@ -338,6 +342,16 @@
                   <input type="url" id="member-icloud-url" class="cloud-input" placeholder="Link do iCloud...">
                 </div>
               </div>
+
+              <!-- Alerta Informativo para Links de Nuvem -->
+              <div id="cloud-warning-box" style="display: none; background: rgba(234, 179, 8, 0.15); border: 1px solid var(--accent-yellow); padding: 1.25rem; border-radius: var(--radius-md); margin-top: 0.75rem;">
+                <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                  <span style="font-size: 1.5rem;">⚠️</span>
+                  <p style="font-size: 0.9rem; line-height: 1.4; color: var(--text-main);">
+                    <strong>Atenção ao link de nuvem:</strong> O endereço colado parece ser uma página web de compartilhamento e não o arquivo direto da imagem. Para que a foto apareça na árvore, clique com o botão direito na foto aberta no Google Photos/OneDrive > selecione <strong>Copiar endereço da imagem</strong> e cole aqui, ou faça o download e use a opção de <strong>Escolher do Smartphone</strong> acima.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -389,6 +403,70 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
         <button id="btn-confirm-conflict" type="button" class="btn btn-primary">Confirmar e Concluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Configuração do Supabase -->
+  <div id="modal-supabase" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3>Configuração do Banco de Dados (Supabase)</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <form id="form-supabase">
+        <div class="modal-body">
+          <p style="font-size: 0.95rem; line-height: 1.5;">Conecte seu próprio projeto do Supabase para ativar persistência em nuvem e sincronização em tempo real entre dispositivos.</p>
+          
+          <div class="form-group">
+            <label for="input-supabase-url">URL do Projeto (Supabase URL)</label>
+            <input type="url" id="input-supabase-url" class="form-control" placeholder="https://xyz.supabase.co" required>
+          </div>
+
+          <div class="form-group">
+            <label for="input-supabase-key">Chave Pública (Anon Key)</label>
+            <input type="text" id="input-supabase-key" class="form-control" placeholder="eyJhbGciOi..." required>
+          </div>
+
+          <div id="supabase-status-box" style="padding: 1rem; border-radius: var(--radius-md); background: var(--bg-primary); border: 1px solid var(--border-glass); display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 0.9rem; font-weight: 500;">Status da Conexão:</span>
+            <span id="supabase-status-badge" style="padding: 0.25rem 0.75rem; border-radius: var(--radius-full); font-size: 0.8rem; font-weight: 700; background: #ca8a04; color: #fef08a;">Não Configurado (Usando LocalStorage)</span>
+          </div>
+
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            💡 <strong>Dica:</strong> Certifique-se de executar o arquivo de migração <code>supabase/migrations/20260518000000_init_raizes.sql</code> no painel SQL do Supabase antes de conectar.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-supabase-disconnect" class="btn btn-secondary" style="display: none;">Desconectar</button>
+          <button type="button" class="btn btn-secondary btn-close-modal">Fechar</button>
+          <button type="submit" class="btn btn-emerald">Conectar e Sincronizar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Ajuste e Recorte de Foto (Cropper.js) -->
+  <div id="modal-crop" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Ajustar e Recortar Foto</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <div style="width: 100%; max-height: 400px; overflow: hidden; background: #000; display: flex; justify-content: center; align-items: center; border-radius: var(--radius-md);">
+          <img id="image-to-crop" src="" style="max-width: 100%; max-height: 400px;">
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
+          <button id="btn-crop-zoom-in" class="btn btn-secondary" title="Aumentar Zoom">🔍 +</button>
+          <button id="btn-crop-zoom-out" class="btn btn-secondary" title="Diminuir Zoom">🔍 -</button>
+          <button id="btn-crop-rotate" class="btn btn-secondary" title="Girar">⟲ Girar</button>
+          <button id="btn-crop-reset" class="btn btn-secondary" title="Resetar">⟲ Resetar</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
+        <button id="btn-confirm-crop" type="button" class="btn btn-emerald">Confirmar Recorte</button>
       </div>
     </div>
   </div>
