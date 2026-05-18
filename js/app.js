@@ -406,7 +406,7 @@ class App {
     ['member-gphotos-url', 'member-onedrive-url', 'member-icloud-url'].forEach(id => {
       const input = document.getElementById(id);
       if (input) {
-        input.addEventListener('input', (e) => {
+        input.addEventListener('input', async (e) => {
           const url = e.target.value.trim();
           const warningBox = document.getElementById('cloud-warning-box');
 
@@ -415,13 +415,54 @@ class App {
             return;
           }
 
-          // Verifica se é uma página web de compartilhamento (GPhotos, OneDrive, iCloud)
-          const isSharePage = url.includes('photos.app.goo.gl') || 
-                              url.includes('photos.google.com/share') || 
-                              url.includes('1drv.ms') || 
-                              url.includes('icloud.com/photos');
+          // Verifica se é uma página web de compartilhamento do Google Photos
+          const isGPhotosShare = url.includes('photos.app.goo.gl') || url.includes('photos.google.com/share');
+          const isOtherShare = url.includes('1drv.ms') || url.includes('icloud.com/photos');
 
-          if (isSharePage) {
+          if (isGPhotosShare) {
+            if (warningBox) warningBox.style.display = 'none';
+            ModalManager.showToast('Extraindo imagem do Google Photos...', 'success');
+            
+            try {
+              // Utiliza proxy CORS público para extrair a tag og:image da página do Google Photos
+              const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
+              const response = await fetch(proxyUrl);
+              const htmlText = await response.text();
+
+              // Busca a tag og:image com regex
+              const match = htmlText.match(/property="og:image" content="([^"]+)"/);
+              if (match && match[1]) {
+                let imgUrl = match[1];
+                // Substitui os parâmetros de redimensionamento para obter a imagem em alta resolução e formato quadrado
+                imgUrl = imgUrl.replace(/=w\d+-h\d+-[^"]+/g, '=w1000-h1000');
+                
+                document.getElementById('member-photo-preview').src = imgUrl;
+                ModalManager.showToast('Foto do Google Photos importada com sucesso!', 'success');
+              } else {
+                throw new Error('Tag og:image não encontrada na página.');
+              }
+            } catch (err) {
+              console.error('Erro ao extrair Google Photos via Codetabs, tentando fallback...', err);
+              // Fallback para AllOrigins caso o Codetabs falhe
+              try {
+                const fallbackUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                const res = await fetch(fallbackUrl);
+                const data = await res.json();
+                const match = (data.contents || '').match(/property="og:image" content="([^"]+)"/);
+                if (match && match[1]) {
+                  let imgUrl = match[1].replace(/=w\d+-h\d+-[^"]+/g, '=w1000-h1000');
+                  document.getElementById('member-photo-preview').src = imgUrl;
+                  ModalManager.showToast('Foto do Google Photos importada com sucesso!', 'success');
+                } else {
+                  if (warningBox) warningBox.style.display = 'block';
+                  ModalManager.showToast('Não foi possível extrair a imagem automaticamente. Veja as instruções abaixo.', 'error');
+                }
+              } catch (fallbackErr) {
+                if (warningBox) warningBox.style.display = 'block';
+                ModalManager.showToast('Não foi possível extrair a imagem automaticamente. Veja as instruções abaixo.', 'error');
+              }
+            }
+          } else if (isOtherShare) {
             if (warningBox) warningBox.style.display = 'block';
           } else if (url.startsWith('http://') || url.startsWith('https://')) {
             if (warningBox) warningBox.style.display = 'none';
