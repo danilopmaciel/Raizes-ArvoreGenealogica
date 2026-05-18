@@ -100,6 +100,7 @@ class FirebaseAdapter {
             role: member.role || '',
             parentId: member.parentId || null,
             partnerId: member.partnerId || null,
+            childrenIds: member.childrenIds || [],
             memberType: member.memberType || 'offline',
             updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
           };
@@ -138,6 +139,7 @@ class FirebaseAdapter {
           role: m.role,
           parentId: m.parentId,
           partnerId: m.partnerId,
+          childrenIds: m.childrenIds || [],
           memberType: m.memberType
         });
       });

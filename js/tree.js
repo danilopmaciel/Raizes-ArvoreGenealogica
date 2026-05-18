@@ -85,10 +85,18 @@ class TreeRenderer {
       return;
     }
 
-    // Organiza os membros por níveis hierárquicos
-    // Nível 1: Avós / Pais sem parentId
-    // Nível 2: Filhos dos membros do Nível 1
-    // Nível 3: Netos / Filhos do Nível 2
+    // Reconstrução dinâmica e defensiva de childrenIds baseada em parentId para garantir resiliência contra dados legados da nuvem
+    family.members.forEach(m => {
+      if (!m.childrenIds) m.childrenIds = [];
+    });
+    family.members.forEach(m => {
+      if (m.parentId) {
+        const parent = family.members.find(p => p.id === m.parentId);
+        if (parent && !parent.childrenIds.includes(m.id)) {
+          parent.childrenIds.push(m.id);
+        }
+      }
+    });
 
     const membersMap = new Map(family.members.map(m => [m.id, m]));
     const rootMembers = family.members.filter(m => !m.parentId);
