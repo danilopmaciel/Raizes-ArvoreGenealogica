@@ -1082,3 +1082,96 @@ main {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-20px); }
 }
+
+/* Member Type Selector Styles */
+.member-type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.member-type-card {
+  background: var(--bg-primary);
+  border: 2px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.member-type-card:hover {
+  border-color: var(--accent-purple);
+  background: rgba(139, 92, 246, 0.05);
+}
+.member-type-card.active {
+  border-color: var(--accent-purple);
+  background: rgba(139, 92, 246, 0.15);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+}
+.member-type-card input[type="radio"] {
+  display: none;
+}
+
+.type-icon {
+  font-size: 1.75rem;
+  background: var(--bg-secondary);
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-glass);
+}
+.member-type-card.active .type-icon {
+  background: var(--accent-purple);
+  border-color: var(--accent-purple);
+}
+
+.type-info h4 {
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+  color: var(--text-main);
+}
+.type-info p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Status Badges on Tree Cards */
+.badge-status {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 5;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-glass);
+}
+.badge-status.deceased {
+  background: #334155;
+  color: #cbd5e1;
+  border-color: #475569;
+}
+.badge-status.pending {
+  background: #ca8a04;
+  color: #fef08a;
+  border-color: #eab308;
+  box-shadow: 0 0 15px rgba(202, 138, 4, 0.4);
+  animation: pulseWarning 2s infinite;
+}
+
+@keyframes pulseWarning {
+  0% { box-shadow: 0 0 0 0 rgba(202, 138, 4, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(202, 138, 4, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(202, 138, 4, 0); }
+}

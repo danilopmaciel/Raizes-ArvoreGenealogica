@@ -8,12 +8,14 @@ import TreeRenderer from './tree.js';
 
 class App {
   constructor() {
+    window.appInstance = this;
     this.currentUser = null;
     this.activeFamily = null;
     this.treeRenderer = null;
     this.selectedMemberForAdd = null; // Membro selecionado ao clicar em "+"
     this.editingMember = null; // Membro em edição
     this.pendingInviteCode = null; // Código de convite pendente da URL ou input
+    this.pendingMemberId = null; // ID de membro específico para vinculação de convite
 
     document.addEventListener('DOMContentLoaded', () => this.init());
   }
@@ -28,11 +30,13 @@ class App {
       (member) => this.openAddRelativeModal(member)
     );
 
-    // Verifica parâmetros de URL (Convite)
+    // Verifica parâmetros de URL (Convite e MemberId)
     const urlParams = new URLSearchParams(window.location.search);
     const inviteParam = urlParams.get('invite');
+    const memberParam = urlParams.get('memberId');
     if (inviteParam) {
       this.pendingInviteCode = inviteParam;
+      this.pendingMemberId = memberParam || null;
       // Limpa a URL para ficar limpa
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -53,11 +57,13 @@ class App {
       return;
     }
 
-    // Se temos um convite pendente, processa-o
+    // Se temos um convite pendente, processa-o com o memberId se houver
     if (this.pendingInviteCode) {
       const code = this.pendingInviteCode;
+      const memId = this.pendingMemberId;
       this.pendingInviteCode = null;
-      this.handleJoinFamily(code);
+      this.pendingMemberId = null;
+      this.handleJoinFamily(code, memId);
       return;
     }
 
@@ -139,7 +145,6 @@ class App {
     const btnDemo = document.getElementById('btn-demo');
     if (btnDemo) {
       btnDemo.addEventListener('click', () => {
-        // Loga com usuário mockado e carrega a família de demonstração
         const demoUser = AuthManager.loginWithGoogle();
         const demoFamily = StorageManager.loadDemoFamily();
         this.activeFamily = demoFamily;
@@ -203,17 +208,6 @@ class App {
       });
     }
 
-    // Código da Família (Clique para abrir convite)
-    const badgeCode = document.getElementById('badge-family-code');
-    if (badgeCode) {
-      badgeCode.addEventListener('click', () => {
-        if (!this.activeFamily) return;
-        document.getElementById('modal-invite-code-text').textContent = this.activeFamily.code;
-        document.getElementById('modal-invite-link-input').value = FamilyManager.getInviteLink(this.activeFamily.code);
-        ModalManager.openModal('modal-invite');
-      });
-    }
-
     // Botão de Convite no Dashboard
     const btnInvite = document.getElementById('btn-dashboard-invite');
     if (btnInvite) {
@@ -221,7 +215,31 @@ class App {
         if (!this.activeFamily) return;
         document.getElementById('modal-invite-code-text').textContent = this.activeFamily.code;
         document.getElementById('modal-invite-link-input').value = FamilyManager.getInviteLink(this.activeFamily.code);
+        
+        const btnWhats = document.getElementById('btn-share-whatsapp');
+        const btnEmail = document.getElementById('btn-share-email');
+        const newWhats = btnWhats.cloneNode(true);
+        const newEmail = btnEmail.cloneNode(true);
+        btnWhats.parentNode.replaceChild(newWhats, btnWhats);
+        btnEmail.parentNode.replaceChild(newEmail, btnEmail);
+
+        newWhats.addEventListener('click', () => {
+          FamilyManager.shareViaWhatsApp(this.activeFamily.code, this.activeFamily.name);
+        });
+        newEmail.addEventListener('click', () => {
+          FamilyManager.shareViaEmail(this.activeFamily.code, this.activeFamily.name);
+        });
+
         ModalManager.openModal('modal-invite');
+      });
+    }
+
+    // Código da Família (Clique para abrir convite)
+    const badgeCode = document.getElementById('badge-family-code');
+    if (badgeCode) {
+      badgeCode.addEventListener('click', () => {
+        if (!this.activeFamily) return;
+        if (btnInvite) btnInvite.click();
       });
     }
 
@@ -233,23 +251,6 @@ class App {
         input.select();
         document.execCommand('copy');
         ModalManager.showToast('Link copiado para a área de transferência!', 'success');
-      });
-    }
-
-    // Compartilhamento WhatsApp / Email
-    const btnWhats = document.getElementById('btn-share-whatsapp');
-    if (btnWhats) {
-      btnWhats.addEventListener('click', () => {
-        if (!this.activeFamily) return;
-        FamilyManager.shareViaWhatsApp(this.activeFamily.code, this.activeFamily.name);
-      });
-    }
-
-    const btnEmail = document.getElementById('btn-share-email');
-    if (btnEmail) {
-      btnEmail.addEventListener('click', () => {
-        if (!this.activeFamily) return;
-        FamilyManager.shareViaEmail(this.activeFamily.code, this.activeFamily.name);
       });
     }
 
@@ -293,6 +294,37 @@ class App {
       }
     });
 
+    // Toggle Tipo de Membro (Offline vs Convite)
+    const typeCards = document.querySelectorAll('.member-type-card');
+    const inviteAlert = document.getElementById('invite-alert-box');
+    typeCards.forEach(card => {
+      card.addEventListener('click', () => {
+        typeCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        const input = card.querySelector('input');
+        if (input) input.checked = true;
+
+        if (input && input.value === 'invite') {
+          if (inviteAlert) inviteAlert.style.display = 'block';
+        } else {
+          if (inviteAlert) inviteAlert.style.display = 'none';
+        }
+      });
+    });
+
+    // Toggle Status de Vida (Vivo vs Falecido)
+    const statusSelect = document.getElementById('member-status');
+    const deathGroup = document.getElementById('group-member-death');
+    if (statusSelect && deathGroup) {
+      statusSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'falecido') {
+          deathGroup.style.display = 'block';
+        } else {
+          deathGroup.style.display = 'none';
+        }
+      });
+    }
+
     // Formulário Adicionar/Editar Membro
     const formMember = document.getElementById('form-member');
     if (formMember) {
@@ -324,9 +356,10 @@ class App {
     }
   }
 
-  handleJoinFamily(inviteCode) {
+  handleJoinFamily(inviteCode, memberId = null) {
     if (!this.currentUser) {
       this.pendingInviteCode = inviteCode;
+      this.pendingMemberId = memberId;
       this.showScreen('login-screen');
       ModalManager.showToast('Faça login para aceitar o convite.', 'success');
       return;
@@ -337,24 +370,27 @@ class App {
       const conflictResult = FamilyManager.checkJoinConflict(inviteCode, currentFamily);
 
       if (conflictResult.hasConflict) {
-        // Exibe o comparativo no modal de conflito
         document.getElementById('conflict-current-name').textContent = conflictResult.currentFamily.name;
         document.getElementById('conflict-current-count').textContent = `${conflictResult.currentFamily.members.length} membros`;
         document.getElementById('conflict-target-name').textContent = conflictResult.targetFamily.name;
         document.getElementById('conflict-target-count').textContent = `${conflictResult.targetFamily.members.length} membros`;
         
-        // Armazena as famílias no dataset do modal para processar depois
         const modal = document.getElementById('modal-join-conflict');
         modal.dataset.targetId = conflictResult.targetFamily.id;
         modal.dataset.sourceId = conflictResult.currentFamily.id;
+        if (memberId) modal.dataset.memberId = memberId;
 
         ModalManager.openModal('modal-join-conflict');
       } else {
-        // Entra direto
-        this.activeFamily = FamilyManager.joinFamilyDirectly(conflictResult.targetFamily.id);
+        if (memberId) {
+          this.activeFamily = FamilyManager.linkUserToMember(conflictResult.targetFamily.id, memberId, this.currentUser);
+          ModalManager.showToast(`Conta vinculada com sucesso na ${this.activeFamily.name}!`, 'success');
+        } else {
+          this.activeFamily = FamilyManager.joinFamilyDirectly(conflictResult.targetFamily.id);
+          ModalManager.showToast(`Bem-vindo à ${this.activeFamily.name}!`, 'success');
+        }
         this.showScreen('dashboard-screen');
         this.renderTree();
-        ModalManager.showToast(`Bem-vindo à ${this.activeFamily.name}!`, 'success');
       }
     } catch (err) {
       ModalManager.showToast(err.message, 'error');
@@ -365,16 +401,22 @@ class App {
     const modal = document.getElementById('modal-join-conflict');
     const targetFamilyId = modal.dataset.targetId;
     const sourceFamilyId = modal.dataset.sourceId;
+    const memberId = modal.dataset.memberId || null;
     const isMerge = document.getElementById('conflict-card-merge').classList.contains('selected');
 
     try {
       if (isMerge) {
         this.activeFamily = FamilyManager.mergeFamilies(targetFamilyId, sourceFamilyId);
+        if (memberId) {
+          this.activeFamily = FamilyManager.linkUserToMember(targetFamilyId, memberId, this.currentUser);
+        }
         ModalManager.showToast('Famílias mescladas com sucesso!', 'success');
       } else {
-        // Para aninhamento, vinculamos à raiz da família anfitriã
         const targetFamily = StorageManager.getFamilies().find(f => f.id === targetFamilyId);
         this.activeFamily = FamilyManager.nestFamily(targetFamilyId, sourceFamilyId, targetFamily.rootMemberId);
+        if (memberId) {
+          this.activeFamily = FamilyManager.linkUserToMember(targetFamilyId, memberId, this.currentUser);
+        }
         ModalManager.showToast('Família conectada como subfamília!', 'success');
       }
 
@@ -393,6 +435,7 @@ class App {
     document.getElementById('modal-member-title').textContent = `Adicionar Parente de ${member.name}`;
     document.getElementById('member-name').value = '';
     document.getElementById('member-birth').value = '';
+    document.getElementById('member-death').value = '';
     document.getElementById('member-bio').value = '';
     document.getElementById('member-photo-preview').src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
     document.getElementById('member-file-upload').value = '';
@@ -400,7 +443,24 @@ class App {
     document.getElementById('member-onedrive-url').value = '';
     document.getElementById('member-icloud-url').value = '';
 
-    // Atualiza opções de parentesco
+    const typeOffline = document.getElementById('type-offline-card');
+    const typeInvite = document.getElementById('type-invite-card');
+    if (typeOffline && typeInvite) {
+      typeOffline.classList.add('active');
+      typeInvite.classList.remove('active');
+      typeOffline.querySelector('input').checked = true;
+    }
+    const inviteAlert = document.getElementById('invite-alert-box');
+    if (inviteAlert) inviteAlert.style.display = 'none';
+
+    const statusSelect = document.getElementById('member-status');
+    if (statusSelect) statusSelect.value = 'vivo';
+    const deathGroup = document.getElementById('group-member-death');
+    if (deathGroup) deathGroup.style.display = 'none';
+
+    const memberTypeSection = document.getElementById('member-type-section');
+    if (memberTypeSection) memberTypeSection.style.display = 'block';
+
     const relSelect = document.getElementById('member-relationship');
     relSelect.innerHTML = `
       <option value="Filho">Filho / Filha</option>
@@ -419,6 +479,7 @@ class App {
     document.getElementById('modal-member-title').textContent = `Editar ${member.name}`;
     document.getElementById('member-name').value = member.name;
     document.getElementById('member-birth').value = member.birthDate || '';
+    document.getElementById('member-death').value = member.deathDate || '';
     document.getElementById('member-bio').value = member.bio || '';
     document.getElementById('member-photo-preview').src = member.photo;
     document.getElementById('member-file-upload').value = '';
@@ -426,7 +487,18 @@ class App {
     document.getElementById('member-onedrive-url').value = '';
     document.getElementById('member-icloud-url').value = '';
 
-    // Desativa a alteração de parentesco na edição direta para manter integridade
+    const memberTypeSection = document.getElementById('member-type-section');
+    if (memberTypeSection) memberTypeSection.style.display = 'none';
+    const inviteAlert = document.getElementById('invite-alert-box');
+    if (inviteAlert) inviteAlert.style.display = 'none';
+
+    const statusSelect = document.getElementById('member-status');
+    const deathGroup = document.getElementById('group-member-death');
+    if (statusSelect && deathGroup) {
+      statusSelect.value = member.status || 'vivo';
+      deathGroup.style.display = member.status === 'falecido' ? 'block' : 'none';
+    }
+
     const relSelect = document.getElementById('member-relationship');
     relSelect.innerHTML = `<option value="${member.role}">${member.role}</option>`;
 
@@ -438,9 +510,14 @@ class App {
 
     const name = document.getElementById('member-name').value.trim();
     const birthDate = document.getElementById('member-birth').value;
+    const deathDate = document.getElementById('member-death').value;
+    const status = document.getElementById('member-status').value;
     const bio = document.getElementById('member-bio').value.trim();
     const photo = document.getElementById('member-photo-preview').src;
     const relationship = document.getElementById('member-relationship').value;
+
+    const memberTypeEl = document.querySelector('input[name="member-type"]:checked');
+    const memberType = memberTypeEl ? memberTypeEl.value : 'offline';
 
     if (!name) {
       ModalManager.showToast('O nome é obrigatório.', 'error');
@@ -449,14 +526,12 @@ class App {
 
     try {
       if (this.editingMember) {
-        // Edição
         FamilyManager.updateMember(this.activeFamily.id, {
           id: this.editingMember.id,
-          name, birthDate, bio, photo
+          name, birthDate, deathDate, status, bio, photo
         });
         ModalManager.showToast('Membro atualizado com sucesso!', 'success');
       } else if (this.selectedMemberForAdd) {
-        // Adição de parente
         let parentId = null;
         let partnerId = null;
         let role = relationship;
@@ -466,17 +541,23 @@ class App {
         } else if (relationship === 'Cônjuge') {
           partnerId = this.selectedMemberForAdd.id;
         } else if (relationship === 'Pai') {
-          // O novo membro é pai do membro selecionado
-          // (Lógica simplificada para árvore direta)
           role = 'Pai/Mãe';
         } else if (relationship === 'Irmão') {
           parentId = this.selectedMemberForAdd.parentId;
         }
 
-        FamilyManager.addMember(this.activeFamily.id, {
-          name, birthDate, bio, photo, role, parentId, partnerId
+        const newMem = FamilyManager.addMember(this.activeFamily.id, {
+          name, birthDate, deathDate, status: memberType === 'invite' ? 'pendente' : status, bio, photo, role, parentId, partnerId, memberType
         });
-        ModalManager.showToast('Parente adicionado com sucesso!', 'success');
+
+        if (memberType === 'invite') {
+          ModalManager.showToast('Convite pendente criado! Compartilhe o link abaixo com o familiar.', 'success');
+          setTimeout(() => {
+            this.resendInvite(newMem);
+          }, 500);
+        } else {
+          ModalManager.showToast('Parente adicionado com sucesso!', 'success');
+        }
       }
 
       ModalManager.closeModal('modal-member');
@@ -485,6 +566,29 @@ class App {
     } catch (err) {
       ModalManager.showToast(err.message, 'error');
     }
+  }
+
+  resendInvite(member) {
+    if (!this.activeFamily) return;
+    document.getElementById('modal-invite-code-text').textContent = this.activeFamily.code;
+    document.getElementById('modal-invite-link-input').value = FamilyManager.getInviteLink(this.activeFamily.code, member.id);
+    
+    const btnWhats = document.getElementById('btn-share-whatsapp');
+    const btnEmail = document.getElementById('btn-share-email');
+    
+    const newWhats = btnWhats.cloneNode(true);
+    const newEmail = btnEmail.cloneNode(true);
+    btnWhats.parentNode.replaceChild(newWhats, btnWhats);
+    btnEmail.parentNode.replaceChild(newEmail, btnEmail);
+
+    newWhats.addEventListener('click', () => {
+      FamilyManager.shareViaWhatsApp(this.activeFamily.code, this.activeFamily.name, member.id, member.name);
+    });
+    newEmail.addEventListener('click', () => {
+      FamilyManager.shareViaEmail(this.activeFamily.code, this.activeFamily.name, member.id, member.name);
+    });
+
+    ModalManager.openModal('modal-invite');
   }
 }
 

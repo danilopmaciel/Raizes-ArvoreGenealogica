@@ -8,22 +8,33 @@ class FamilyManager {
     return StorageManager.createFamily(name, userName, userPhoto);
   }
 
-  static getInviteLink(familyCode) {
+  static getInviteLink(familyCode, memberId = null) {
     const baseUrl = window.location.origin + window.location.pathname;
-    return `${baseUrl}?invite=${familyCode}`;
+    let link = `${baseUrl}?invite=${familyCode}`;
+    if (memberId) {
+      link += `&memberId=${memberId}`;
+    }
+    return link;
   }
 
-  static shareViaWhatsApp(familyCode, familyName) {
-    const link = this.getInviteLink(familyCode);
-    const text = `Olá! Venha fazer parte da árvore genealógica da ${familyName} na plataforma Raízes! Acesse o link ou use o código ${familyCode}: ${link}`;
+  static shareViaWhatsApp(familyCode, familyName, memberId = null, memberName = null) {
+    const link = this.getInviteLink(familyCode, memberId);
+    let text = `Olá! Venha fazer parte da árvore genealógica da ${familyName} na plataforma Raízes! Acesse o link ou use o código ${familyCode}: ${link}`;
+    if (memberId && memberName) {
+      text = `Olá, ${memberName}! Criei o seu cartão na nossa árvore genealógica da ${familyName}. Clique no link exclusivo para acessar, criar sua conta e assumir seu perfil na árvore: ${link}`;
+    }
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   }
 
-  static shareViaEmail(familyCode, familyName) {
-    const link = this.getInviteLink(familyCode);
-    const subject = `Convite para a Árvore Genealógica da ${familyName}`;
-    const body = `Olá!\n\nVocê foi convidado para ingressar na árvore genealógica da ${familyName} na plataforma Raízes.\n\nPara participar, clique no link abaixo ou insira o código de convite: ${familyCode}\n\nLink: ${link}\n\nEstamos construindo nossa história juntos!`;
+  static shareViaEmail(familyCode, familyName, memberId = null, memberName = null) {
+    const link = this.getInviteLink(familyCode, memberId);
+    let subject = `Convite para a Árvore Genealógica da ${familyName}`;
+    let body = `Olá!\n\nVocê foi convidado para ingressar na árvore genealógica da ${familyName} na plataforma Raízes.\n\nPara participar, clique no link abaixo ou insira o código de convite: ${familyCode}\n\nLink: ${link}\n\nEstamos construindo nossa história juntos!`;
+    if (memberId && memberName) {
+      subject = `Convite Exclusivo para ${memberName} — Árvore Genealógica da ${familyName}`;
+      body = `Olá, ${memberName}!\n\nCriei o seu cartão na nossa árvore genealógica da ${familyName} na plataforma Raízes.\n\nPara acessar, criar sua conta e assumir o gerenciamento do seu perfil na árvore, clique no link exclusivo abaixo:\n\nLink: ${link}\n\nEstamos construindo nossa história juntos!`;
+    }
     const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = url;
   }
@@ -44,7 +55,10 @@ class FamilyManager {
       parentId: memberData.parentId || null,
       partnerId: memberData.partnerId || null,
       childrenIds: [],
-      bio: memberData.bio || ''
+      bio: memberData.bio || '',
+      memberType: memberData.memberType || 'offline',
+      status: memberData.status || 'vivo',
+      deathDate: memberData.deathDate || null
     };
 
     // Atualiza referências nos parentes associados
@@ -184,6 +198,26 @@ class FamilyManager {
 
     StorageManager.setActiveFamily(targetFamilyId);
     return targetFamily;
+  }
+
+  static linkUserToMember(familyId, memberId, currentUser) {
+    const families = StorageManager.getFamilies();
+    const family = families.find(f => f.id === familyId);
+    if (!family) throw new Error('Família não encontrada.');
+
+    const member = family.members.find(m => m.id === memberId);
+    if (!member) throw new Error('Cartão de membro pendente não encontrado.');
+
+    // Atualiza o cartão de membro com os dados reais do usuário logado
+    member.name = currentUser.name;
+    member.photo = currentUser.photo || member.photo;
+    member.status = 'vivo';
+    member.memberType = 'online';
+    member.linkedUserId = currentUser.id;
+
+    StorageManager.saveFamily(family);
+    StorageManager.setActiveFamily(family.id);
+    return family;
   }
 }
 

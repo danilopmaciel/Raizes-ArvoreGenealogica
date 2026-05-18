@@ -167,28 +167,51 @@ class TreeRenderer {
     card.className = `tree-card ${member.id === familyRootId ? 'root-member' : ''}`;
     card.dataset.id = member.id;
 
-    // Formata a data de nascimento
+    // Formata a data de nascimento e falecimento
     let birthStr = member.birthDate;
     if (birthStr) {
       const parts = birthStr.split('-');
       if (parts.length === 3) birthStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
 
+    let deathStr = member.deathDate;
+    if (deathStr) {
+      const parts = deathStr.split('-');
+      if (parts.length === 3) deathStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    let datesText = birthStr ? birthStr : 'Data desconhecida';
+    if (member.status === 'falecido') {
+      datesText = `${birthStr || '?'} - ${deathStr || '?'}`;
+    }
+
+    // Configuração de Badges Visuais (In Memoriam vs Convite Pendente)
+    let badgeHtml = '';
+    let miniActionsHtml = `<button class="btn-mini btn-add-rel" title="Adicionar Parente" data-id="${member.id}">+</button>`;
+
+    if (member.status === 'falecido') {
+      badgeHtml = `<span class="badge-status deceased">🕊️ In Memoriam</span>`;
+    } else if (member.status === 'pendente' || member.memberType === 'invite') {
+      badgeHtml = `<span class="badge-status pending" title="Clique para reenviar convite">⏳ Convite Pendente</span>`;
+      miniActionsHtml += `<button class="btn-mini btn-resend-inv" title="Reenviar Convite" data-id="${member.id}">✉</button>`;
+    }
+
     card.innerHTML = `
+      ${badgeHtml}
       <div class="member-avatar-wrapper">
         <img src="${member.photo}" alt="${member.name}" class="member-avatar" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
         <span class="member-role-badge">${member.role}</span>
       </div>
       <div class="member-info">
         <div class="member-name" title="${member.name}">${member.name}</div>
-        <div class="member-dates">${birthStr || 'Data desconhecida'}</div>
+        <div class="member-dates">${datesText}</div>
       </div>
       <div class="member-actions-mini">
-        <button class="btn-mini btn-add-rel" title="Adicionar Parente" data-id="${member.id}">+</button>
+        ${miniActionsHtml}
       </div>
     `;
 
-    // Evento de clique para expandir/editar detalhes
+    // Evento de clique para expandir/editar detalhes ou reenviar convite
     card.addEventListener('click', (e) => {
       if (e.target.closest('.btn-mini')) return;
       if (this.onMemberClick) this.onMemberClick(member);
@@ -200,6 +223,17 @@ class TreeRenderer {
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.onAddRelativeClick) this.onAddRelativeClick(member);
+      });
+    }
+
+    // Evento de clique no botão mini de reenviar convite
+    const resendBtn = card.querySelector('.btn-resend-inv');
+    if (resendBtn) {
+      resendBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.appInstance && window.appInstance.resendInvite) {
+          window.appInstance.resendInvite(member);
+        }
       });
     }
 
