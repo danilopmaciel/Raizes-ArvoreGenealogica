@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raízes — Árvore Genealógica Premium</title>
+  <meta name="description" content="Crie, gerencie e compartilhe sua árvore genealógica de forma interativa e elegante. Conecte gerações com o Raízes.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+</head>
+<body>
+
+  <!-- Navbar / Header -->
+  <header class="navbar">
+    <div class="navbar-brand">
+      <img src="assets/logo.png" alt="Raízes Logo" class="navbar-logo" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
+      <span class="navbar-title">Raízes</span>
+    </div>
+    <div class="navbar-user">
+      <div id="navbar-user-profile" class="user-profile" style="display: none;">
+        <div class="user-avatar"></div>
+        <span class="user-name">Usuário</span>
+      </div>
+      <button id="navbar-login-btn" class="btn btn-primary" onclick="document.getElementById('login-screen').classList.add('active');">Entrar</button>
+      <button id="navbar-logout-btn" class="btn btn-secondary" style="display: none;">Sair</button>
+    </div>
+  </header>
+
+  <!-- Main Content Area (Single Page Application Views) -->
+  <main>
+    
+    <!-- Tela 1: Login / Welcome -->
+    <section id="login-screen" class="screen active login-screen">
+      <div class="login-grid">
+        <div class="hero-content">
+          <div class="hero-badge">✦ Plataforma Premium de Genealogia</div>
+          <h1 class="hero-title">Conecte o seu passado ao <span>futuro</span></h1>
+          <p class="hero-subtitle">Crie árvores genealógicas deslumbrantes, convide familiares pelo WhatsApp, adicione fotos direto do smartphone ou nuvem e preserve o legado da sua família para sempre.</p>
+          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button id="btn-demo" class="btn btn-emerald" style="font-size: 1.1rem; padding: 1rem 2rem;">
+              <span>✦ Experimentar Demonstração Interativa</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card login-card">
+          <div class="login-header">
+            <h3>Acesse sua Conta</h3>
+            <p>Escolha como deseja entrar para começar</p>
+          </div>
+
+          <button id="btn-login-google" class="btn-google">
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Continuar com o Google</span>
+          </button>
+
+          <div class="divider">ou entre com seu e-mail</div>
+
+          <form id="form-login-email">
+            <div class="form-group">
+              <label for="login-email">E-mail</label>
+              <input type="email" id="login-email" class="form-control" placeholder="seu@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="login-password">Senha</label>
+              <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Entrar com E-mail</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tela 2: Onboarding / Seleção de Família -->
+    <section id="onboarding-screen" class="screen onboarding-screen">
+      <div class="onboarding-container">
+        <div class="onboarding-header">
+          <h2>Bem-vindo à sua Jornada Genealógica</h2>
+          <p>Para começar, crie uma nova árvore para sua família ou ingresse em uma árvore existente através de um convite.</p>
+        </div>
+
+        <div class="onboarding-cards">
+          <div id="card-create-family" class="glass-card action-card emerald">
+            <div class="action-icon">+</div>
+            <h3 class="action-title">Criar Nova Família</h3>
+            <p class="action-desc">Inicie uma nova árvore genealógica do zero, adicione parentes e convide sua família para colaborar.</p>
+            <span class="btn btn-emerald" style="margin-top: auto;">Criar Árvore</span>
+          </div>
+
+          <div id="card-join-family" class="glass-card action-card">
+            <div class="action-icon">⤐</div>
+            <h3 class="action-title">Ingressar em uma Família</h3>
+            <p class="action-desc">Recebeu um link ou código de convite? Entre na árvore da sua família e conecte sua história.</p>
+            <span class="btn btn-primary" style="margin-top: auto;">Usar Convite</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tela 3: Dashboard / Visualizador da Árvore -->
+    <section id="dashboard-screen" class="screen dashboard-screen">
+      <div class="dashboard-header">
+        <div class="family-info">
+          <h2 id="family-title-text" class="family-title">Família</h2>
+          <div id="badge-family-code" class="family-code-badge" title="Clique para compartilhar convite">
+            <span>Código:</span> <strong id="family-code-text">RAIZ-XYZ</strong>
+          </div>
+        </div>
+        <div class="dashboard-actions">
+          <button id="btn-dashboard-invite" class="btn btn-emerald">
+            <span>+ Convidar Familiares</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tree-workspace">
+        <div id="tree-container" class="tree-container">
+          <!-- A árvore será renderizada dinamicamente aqui pelo TreeRenderer -->
+        </div>
+
+        <!-- Controles de Zoom/Pan -->
+        <div class="tree-controls">
+          <button id="btn-zoom-in" class="btn-control" title="Aumentar Zoom">+</button>
+          <button id="btn-zoom-out" class="btn-control" title="Diminuir Zoom">-</button>
+          <button id="btn-zoom-reset" class="btn-control" title="Resetar Zoom">⟲</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modais -->
+
+  <!-- Modal: Criar Família -->
+  <div id="modal-create-family" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Criar Nova Família</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <form id="form-create-family">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="input-family-name">Nome da Família (Ex: Família Silva & Santos)</label>
+            <input type="text" id="input-family-name" class="form-control" placeholder="Digite o nome da família" required>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.9rem;">Você será adicionado automaticamente como a raiz (fundador) desta árvore genealógica.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-emerald">Criar Família</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Ingressar na Família -->
+  <div id="modal-join-family" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Ingressar em uma Família</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <form id="form-join-family">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="input-invite-code">Código de Convite</label>
+            <input type="text" id="input-invite-code" class="form-control" placeholder="Ex: RAIZ-2026-XYZ" required>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.9rem;">Insira o código fornecido pelo administrador da árvore para ingressar.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Ingressar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Convite e Compartilhamento -->
+  <div id="modal-invite" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Convidar Familiares</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Compartilhe o link ou o código abaixo com seus parentes para que eles possam ingressar e colaborar na construção da árvore.</p>
+        
+        <div class="form-group">
+          <label>Código de Convite Direto</label>
+          <div style="font-size: 1.5rem; font-family: monospace; font-weight: bold; color: var(--accent-emerald); background: var(--bg-primary); padding: 1rem; border-radius: var(--radius-md); text-align: center; border: 1px solid var(--border-glass);">
+            <span id="modal-invite-code-text">RAIZ-XYZ</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Link de Compartilhamento</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="modal-invite-link-input" class="form-control" readonly style="flex: 1;">
+            <button id="btn-copy-invite-link" class="btn btn-secondary">Copiar</button>
+          </div>
+        </div>
+
+        <div class="divider">Compartilhar via</div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <button id="btn-share-whatsapp" class="btn btn-emerald" style="justify-content: center;">
+            <span>WhatsApp</span>
+          </button>
+          <button id="btn-share-email" class="btn btn-primary" style="justify-content: center;">
+            <span>E-mail</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Adicionar / Editar Membro (Com Upload de Fotos Multi-fonte) -->
+  <div id="modal-member" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-member-title">Adicionar Parente</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <form id="form-member">
+        <div class="modal-body">
+          
+          <div class="form-group">
+            <label for="member-name">Nome Completo</label>
+            <input type="text" id="member-name" class="form-control" placeholder="Digite o nome completo" required>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label for="member-relationship">Grau de Parentesco</label>
+              <select id="member-relationship" class="form-control">
+                <option value="Filho">Filho / Filha</option>
+                <option value="Cônjuge">Cônjuge / Parceiro(a)</option>
+                <option value="Pai">Pai / Mãe</option>
+                <option value="Irmão">Irmão / Irmã</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="member-birth">Data de Nascimento</label>
+              <input type="date" id="member-birth" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="member-bio">Biografia Curta / Notas</label>
+            <textarea id="member-bio" class="form-control" rows="2" placeholder="Informações adicionais sobre o membro..."></textarea>
+          </div>
+
+          <div class="divider">Foto de Perfil (Smartphone ou Nuvem)</div>
+
+          <div class="photo-upload-section">
+            <div class="photo-preview-container">
+              <img id="member-photo-preview" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80" alt="Preview" class="photo-preview">
+              <div class="photo-options">
+                <label class="file-upload-btn">
+                  <span>✦ Escolher do Smartphone / Galeria</span>
+                  <input type="file" id="member-file-upload" accept="image/*">
+                </label>
+                <span style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">Formatos suportados: JPG, PNG, WEBP</span>
+              </div>
+            </div>
+
+            <div class="divider" style="margin: 0.5rem 0;">ou vincular link de nuvem</div>
+
+            <div class="cloud-links-grid">
+              <div class="cloud-input-group">
+                <span class="cloud-icon gphotos">G</span>
+                <input type="url" id="member-gphotos-url" class="cloud-input" placeholder="Link do Google Photos...">
+              </div>
+              <div class="cloud-input-group">
+                <span class="cloud-icon onedrive">O</span>
+                <input type="url" id="member-onedrive-url" class="cloud-input" placeholder="Link do OneDrive...">
+              </div>
+              <div class="cloud-input-group">
+                <span class="cloud-icon icloud">i</span>
+                <input type="url" id="member-icloud-url" class="cloud-input" placeholder="Link do iCloud...">
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
+          <button type="submit" class="btn btn-emerald">Salvar Membro</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Conflito de Ingressão (Mesclar vs Aninhar) -->
+  <div id="modal-join-conflict" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3>Conflito de Famílias Detectado</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 1.05rem; line-height: 1.5;">Você já possui uma família ativa e está aceitando o convite para outra família. Como deseja organizar essas árvores?</p>
+
+        <div class="conflict-comparison">
+          <div class="conflict-tree-box">
+            <h4>Sua Família Atual</h4>
+            <div id="conflict-current-name" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 0.25rem;">Família A</div>
+            <div id="conflict-current-count" style="font-size: 0.9rem; color: var(--text-muted);">0 membros</div>
+          </div>
+          <div class="conflict-vs">VS</div>
+          <div class="conflict-tree-box">
+            <h4>Família Convidativa</h4>
+            <div id="conflict-target-name" style="font-weight: bold; font-size: 1.1rem; margin-bottom: 0.25rem;">Família B</div>
+            <div id="conflict-target-count" style="font-size: 0.9rem; color: var(--text-muted);">0 membros</div>
+          </div>
+        </div>
+
+        <div class="conflict-options">
+          <div id="conflict-card-merge" class="conflict-option-card selected">
+            <h4>✦ Mesclar Famílias (Merge)</h4>
+            <p>O sistema irá comparar os membros das duas famílias, unificar duplicatas e combinar todos em uma única grande árvore genealógica colaborativa.</p>
+          </div>
+
+          <div id="conflict-card-nest" class="conflict-option-card">
+            <h4>✦ Criar como Subfamília (Aninhar)</h4>
+            <p>Sua família atual será mantida intacta e adicionada como um novo ramo (subfamília) associado ao fundador da nova família anfitriã.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
+        <button id="btn-confirm-conflict" type="button" class="btn btn-primary">Confirmar e Concluir</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
