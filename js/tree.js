@@ -1,5 +1,7 @@
 // Módulo de Renderização Visual e Interativa da Árvore Genealógica
 
+const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
 class TreeRenderer {
   constructor(containerId, onMemberClick, onAddRelativeClick) {
     this.container = document.getElementById(containerId);
@@ -200,7 +202,7 @@ class TreeRenderer {
     card.innerHTML = `
       ${badgeHtml}
       <div class="member-avatar-wrapper">
-        <img src="${member.photo}" alt="${member.name}" class="member-avatar" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
+        <img src="${member.photo}" alt="${member.name}" class="member-avatar" onerror="this.src=DEFAULT_SILHOUETTE">
         <span class="member-role-badge">${member.role}</span>
       </div>
       <div class="member-info">

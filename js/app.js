@@ -8,6 +8,8 @@ import TreeRenderer from './tree.js';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
+const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
 class App {
   constructor() {
     window.appInstance = this;
@@ -170,6 +172,34 @@ class App {
     if (this.activeFamily && this.treeRenderer) {
       document.getElementById('family-title-text').textContent = this.activeFamily.name;
       document.getElementById('family-code-text').textContent = this.activeFamily.code;
+
+      // Auto-linking / Auto-healing pass: Garante que pais/mães adicionados fiquem conectados ao membro raiz ou filhos
+      if (this.activeFamily.members && this.activeFamily.members.length > 1) {
+        let modified = false;
+        const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
+        
+        // Encontra membros que são Pai/Mãe
+        const parents = this.activeFamily.members.filter(m => m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe');
+        parents.forEach(parent => {
+          if (!parent.childrenIds) parent.childrenIds = [];
+          if (parent.childrenIds.length === 0) {
+            // Se o pai/mãe não tem filhos, conecta ao membro raiz da família (fundador) ou ao primeiro membro sem pai
+            const rootMember = membersMap.get(this.activeFamily.rootMemberId) || this.activeFamily.members.find(m => m.id !== parent.id && !m.parentId);
+            if (rootMember) {
+              rootMember.parentId = parent.id;
+              if (!parent.childrenIds.includes(rootMember.id)) {
+                parent.childrenIds.push(rootMember.id);
+              }
+              modified = true;
+            }
+          }
+        });
+
+        if (modified) {
+          StorageManager.saveFamily(this.activeFamily);
+        }
+      }
+
       this.treeRenderer.render(this.activeFamily);
     }
   }
@@ -594,7 +624,7 @@ class App {
     document.getElementById('member-birth').value = '';
     document.getElementById('member-death').value = '';
     document.getElementById('member-bio').value = '';
-    document.getElementById('member-photo-preview').src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+    document.getElementById('member-photo-preview').src = DEFAULT_SILHOUETTE;
     document.getElementById('member-file-upload').value = '';
     document.getElementById('member-gphotos-url').value = '';
     document.getElementById('member-onedrive-url').value = '';
@@ -697,6 +727,7 @@ class App {
       } else if (this.selectedMemberForAdd) {
         let parentId = null;
         let partnerId = null;
+        let childIdToLink = null;
         let role = relationship;
 
         if (relationship === 'Filho') {
@@ -705,12 +736,13 @@ class App {
           partnerId = this.selectedMemberForAdd.id;
         } else if (relationship === 'Pai') {
           role = 'Pai/Mãe';
+          childIdToLink = this.selectedMemberForAdd.id;
         } else if (relationship === 'Irmão') {
           parentId = this.selectedMemberForAdd.parentId;
         }
 
         const newMem = FamilyManager.addMember(this.activeFamily.id, {
-          name, birthDate, deathDate, status: memberType === 'invite' ? 'pendente' : status, bio, photo, role, parentId, partnerId, memberType
+          name, birthDate, deathDate, status: memberType === 'invite' ? 'pendente' : status, bio, photo, role, parentId, partnerId, childIdToLink, memberType
         });
 
         if (memberType === 'invite') {

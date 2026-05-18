@@ -3,6 +3,8 @@
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
+const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
 const STORAGE_KEY_USER = 'raizes_current_user';
 const STORAGE_KEY_FAMILIES = 'raizes_families';
 const STORAGE_KEY_ACTIVE_FAMILY = 'raizes_active_family_id';
@@ -184,7 +186,7 @@ class StorageManager {
       id: rootMemberId,
       name: userName,
       birthDate: new Date().toISOString().split('T')[0],
-      photo: userPhoto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      photo: userPhoto || DEFAULT_SILHOUETTE,
       role: 'Raiz',
       parentId: null,
       partnerId: null,

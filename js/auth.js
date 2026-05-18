@@ -2,6 +2,8 @@
 
 import StorageManager from './storage.js';
 
+const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
 class AuthManager {
   static init(onAuthStateChanged) {
     this.onAuthStateChanged = onAuthStateChanged;
@@ -18,14 +20,14 @@ class AuthManager {
         id: 'usr_google_1',
         name: 'Danilo Maciel',
         email: 'danilopmaciel@gmail.com',
-        photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+        photo: DEFAULT_SILHOUETTE,
         provider: 'google'
       },
       {
         id: 'usr_google_2',
         name: 'Helena Silva',
         email: 'helena.silva@gmail.com',
-        photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+        photo: DEFAULT_SILHOUETTE,
         provider: 'google'
       }
     ];
@@ -53,7 +55,7 @@ class AuthManager {
       id: 'usr_email_' + Date.now(),
       name: formattedName,
       email: email,
-      photo: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
+      photo: DEFAULT_SILHOUETTE,
       provider: 'email'
     };
 

@@ -2,6 +2,8 @@
 
 import StorageManager from './storage.js';
 
+const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
 class FamilyManager {
   static createFamily(name, userName, userPhoto) {
     if (!name) throw new Error('O nome da família é obrigatório.');
@@ -50,7 +52,7 @@ class FamilyManager {
       id: newMemberId,
       name: memberData.name,
       birthDate: memberData.birthDate || '',
-      photo: memberData.photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      photo: memberData.photo || DEFAULT_SILHOUETTE,
       role: memberData.role || 'Parente',
       parentId: memberData.parentId || null,
       partnerId: memberData.partnerId || null,
@@ -76,6 +78,14 @@ class FamilyManager {
       const partner = family.members.find(m => m.id === newMember.partnerId);
       if (partner) {
         partner.partnerId = newMemberId; // Relacionamento bidirecional
+      }
+    }
+
+    if (memberData.childIdToLink) {
+      const child = family.members.find(m => m.id === memberData.childIdToLink);
+      if (child) {
+        child.parentId = newMemberId;
+        newMember.childrenIds.push(child.id);
       }
     }
 
