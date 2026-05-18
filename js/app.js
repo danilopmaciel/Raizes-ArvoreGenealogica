@@ -66,7 +66,19 @@ class App {
       await StorageManager.syncFromSupabase();
       if (this.currentUser) {
         this.activeFamily = StorageManager.getActiveFamily();
-        this.renderTree();
+        if (!this.activeFamily) {
+          const families = StorageManager.getFamilies();
+          if (families.length > 0) {
+            StorageManager.setActiveFamily(families[0].id);
+            this.activeFamily = families[0];
+          }
+        }
+        if (this.activeFamily) {
+          this.showScreen('dashboard-screen');
+          this.renderTree();
+        } else {
+          this.showScreen('onboarding-screen');
+        }
       }
     }
   }
@@ -90,6 +102,13 @@ class App {
     }
 
     this.activeFamily = StorageManager.getActiveFamily();
+    if (!this.activeFamily) {
+      const families = StorageManager.getFamilies();
+      if (families.length > 0) {
+        StorageManager.setActiveFamily(families[0].id);
+        this.activeFamily = families[0];
+      }
+    }
 
     if (this.activeFamily) {
       this.showScreen('dashboard-screen');
