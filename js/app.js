@@ -125,34 +125,19 @@ class App {
 
   updateSupabaseUI() {
     const badge = document.getElementById('supabase-status-badge');
-    const btnDisconnect = document.getElementById('btn-supabase-disconnect');
-    const apiKeyInput = document.getElementById('input-firebase-apikey');
-    const projectIdInput = document.getElementById('input-firebase-projectid');
 
     if (firebaseAdapterInstance.isConfigured()) {
       if (badge) {
-        badge.textContent = 'Conectado e Sincronizado (Firebase)';
+        badge.textContent = 'Online e Sincronizado';
         badge.style.background = '#15803d';
         badge.style.color = '#bbf7d0';
       }
-      if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
-      const saved = JSON.parse(localStorage.getItem('raizes_firebase_config') || '{}');
-      if (apiKeyInput) apiKeyInput.value = saved.apiKey || 'AIzaSyCXE1vJSroJJDFlOaFI7SmjQJr0OWj1kiQ';
-      if (projectIdInput) projectIdInput.value = saved.projectId || 'raizes-9e7b7';
-    } else if (supabaseAdapterInstance.isConfigured()) {
-      if (badge) {
-        badge.textContent = 'Conectado e Sincronizado (Supabase)';
-        badge.style.background = '#15803d';
-        badge.style.color = '#bbf7d0';
-      }
-      if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
     } else {
       if (badge) {
         badge.textContent = 'Não Configurado (Usando LocalStorage)';
         badge.style.background = '#ca8a04';
         badge.style.color = '#fef08a';
       }
-      if (btnDisconnect) btnDisconnect.style.display = 'none';
     }
   }
 
@@ -215,61 +200,12 @@ class App {
       });
     }
 
-    // Supabase Config Actions
+    // Botão de Status da Nuvem
     const btnSupabaseNav = document.getElementById('navbar-supabase-btn');
     if (btnSupabaseNav) {
       btnSupabaseNav.addEventListener('click', () => {
         this.updateSupabaseUI();
         ModalManager.openModal('modal-supabase');
-      });
-    }
-
-    const formSupabase = document.getElementById('form-supabase');
-    if (formSupabase) {
-      formSupabase.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const apiKey = document.getElementById('input-firebase-apikey').value.trim();
-        const projectId = document.getElementById('input-firebase-projectid').value.trim();
-        
-        const config = {
-          apiKey: apiKey,
-          authDomain: `${projectId}.firebaseapp.com`,
-          projectId: projectId,
-          storageBucket: `${projectId}.firebasestorage.app`,
-          messagingSenderId: "764589881699",
-          appId: "1:764589881699:web:c71286afc9ba572f137b56"
-        };
-
-        try {
-          ModalManager.showToast('Conectando ao Firebase Firestore...', 'success');
-          firebaseAdapterInstance.configure(config);
-          this.updateSupabaseUI();
-          
-          // Sincroniza dados locais para a nuvem e vice-versa
-          const localFamilies = StorageManager.getFamilies();
-          for (const f of localFamilies) {
-            await firebaseAdapterInstance.syncFamily(f);
-          }
-          await StorageManager.syncFromSupabase();
-          this.activeFamily = StorageManager.getActiveFamily();
-          this.renderTree();
-
-          ModalManager.closeModal('modal-supabase');
-          ModalManager.showToast('Firebase conectado e sincronizado com sucesso!', 'success');
-        } catch (err) {
-          ModalManager.showToast(err.message, 'error');
-        }
-      });
-    }
-
-    const btnSupabaseDisconnect = document.getElementById('btn-supabase-disconnect');
-    if (btnSupabaseDisconnect) {
-      btnSupabaseDisconnect.addEventListener('click', () => {
-        supabaseAdapterInstance.disconnect();
-        firebaseAdapterInstance.disconnect();
-        this.updateSupabaseUI();
-        ModalManager.closeModal('modal-supabase');
-        ModalManager.showToast('Desconectado da Nuvem. Usando armazenamento local.', 'success');
       });
     }
 
