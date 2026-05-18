@@ -64,8 +64,11 @@ class FamilyManager {
     // Atualiza referências nos parentes associados
     if (newMember.parentId) {
       const parent = family.members.find(m => m.id === newMember.parentId);
-      if (parent && !parent.childrenIds.includes(newMemberId)) {
-        parent.childrenIds.push(newMemberId);
+      if (parent) {
+        if (!parent.childrenIds) parent.childrenIds = parent.children || [];
+        if (!parent.childrenIds.includes(newMemberId)) {
+          parent.childrenIds.push(newMemberId);
+        }
       }
     }
 

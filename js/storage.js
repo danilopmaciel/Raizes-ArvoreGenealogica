@@ -33,7 +33,7 @@ const DEMO_FAMILY = {
       role: 'Avó',
       parentId: null,
       partnerId: 'mem_demo_avo_m',
-      children: ['mem_demo_root', 'mem_demo_tio'],
+      childrenIds: ['mem_demo_root', 'mem_demo_tio'],
       bio: 'Matriarca, famosa por suas receitas tradicionais e reuniões de domingo.'
     },
     {

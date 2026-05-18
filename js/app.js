@@ -313,6 +313,34 @@ class App {
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     if (btnZoomReset) btnZoomReset.addEventListener('click', () => this.treeRenderer.resetZoom());
 
+  openCropperModal(imageSrc) {
+    const imageToCrop = document.getElementById('image-to-crop');
+    imageToCrop.src = imageSrc;
+    
+    ModalManager.openModal('modal-crop');
+
+    if (this.cropperInstance) {
+      this.cropperInstance.destroy();
+    }
+
+    // Inicializa o Cropper após a imagem carregar no modal
+    setTimeout(() => {
+      this.cropperInstance = new Cropper(imageToCrop, {
+        aspectRatio: 1,
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.8,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+      });
+    }, 200);
+  }
+
     // Upload de Foto Local + Cropper.js
     const fileInput = document.getElementById('member-file-upload');
     if (fileInput) {
@@ -321,35 +349,19 @@ class App {
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            const imageToCrop = document.getElementById('image-to-crop');
-            imageToCrop.src = event.target.result;
-            
-            ModalManager.openModal('modal-crop');
-
-            if (this.cropperInstance) {
-              this.cropperInstance.destroy();
-            }
-
-            // Inicializa o Cropper após a imagem carregar no modal
-            setTimeout(() => {
-              this.cropperInstance = new Cropper(imageToCrop, {
-                aspectRatio: 1,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 0.8,
-                restore: false,
-                guides: true,
-                center: true,
-                highlight: false,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: false,
-              });
-            }, 200);
+            this.openCropperModal(event.target.result);
           };
           reader.readAsDataURL(file);
           fileInput.value = ''; // Limpa input para permitir re-upload do mesmo arquivo
         }
+      });
+    }
+
+    const btnOpenCropper = document.getElementById('btn-open-cropper');
+    if (btnOpenCropper) {
+      btnOpenCropper.addEventListener('click', () => {
+        const currentSrc = document.getElementById('member-photo-preview').src;
+        this.openCropperModal(currentSrc);
       });
     }
 
@@ -414,7 +426,7 @@ class App {
                 imgUrl = imgUrl.replace(/=w\d+-h\d+-[^"]+/g, '=w1000-h1000');
                 
                 document.getElementById('member-photo-preview').src = imgUrl;
-                ModalManager.showToast('Foto do Google Photos importada com sucesso!', 'success');
+                ModalManager.showToast('Foto importada! Clique em "Ajustar / Recortar Foto Atual" se desejar enquadrar.', 'success');
               } else {
                 throw new Error('Tag og:image não encontrada na página.');
               }
@@ -429,7 +441,8 @@ class App {
                 if (match && match[1]) {
                   let imgUrl = match[1].replace(/=w\d+-h\d+-[^"]+/g, '=w1000-h1000');
                   document.getElementById('member-photo-preview').src = imgUrl;
-                  ModalManager.showToast('Foto do Google Photos importada com sucesso!', 'success');
+                  ModalManager.showToast('Foto importada! Clique em "Ajustar / Recortar Foto Atual" se desejar enquadrar.', 'success');
+
                 } else {
                   if (warningBox) warningBox.style.display = 'block';
                   ModalManager.showToast('Não foi possível extrair a imagem automaticamente. Veja as instruções abaixo.', 'error');

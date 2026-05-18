@@ -133,9 +133,10 @@ class TreeRenderer {
     groupDiv.appendChild(partnersDiv);
 
     // Renderiza os filhos deste membro (ou do casal)
-    const childrenIds = member.childrenIds || [];
-    if (partner && partner.childrenIds) {
-      partner.childrenIds.forEach(cid => {
+    const childrenIds = member.childrenIds || member.children || [];
+    if (partner) {
+      const partnerChildren = partner.childrenIds || partner.children || [];
+      partnerChildren.forEach(cid => {
         if (!childrenIds.includes(cid)) childrenIds.push(cid);
       });
     }
