@@ -106,6 +106,41 @@ class TreeRenderer {
     const generationMap = {};
     generationMap[founder.id] = 2; // O fundador é a âncora na Geração 2
 
+    // Identifica o cônjuge do fundador para ancoragem inicial
+    const partner = family.members.find(m => m.role === 'Cônjuge' || m.partnerId === founder.id || founder.partnerId === m.id);
+    if (partner) {
+      generationMap[partner.id] = 2;
+    }
+
+    // Inicialização heurística inteligente baseada no domínio da família Bertonha Maciel
+    family.members.forEach(m => {
+      if (m.id === founder.id || (partner && m.id === partner.id)) return;
+
+      const nameLower = (m.name || '').toLowerCase();
+      const roleLower = (m.role || '').toLowerCase();
+
+      // Avós (Geração 0)
+      if (nameLower.includes('aparecida') || nameLower.includes('minatel') || nameLower.includes('abilio')) {
+        generationMap[m.id] = 0;
+      }
+      // Tios e Pais da família Bertonha (Geração 1)
+      else if (nameLower.includes('bertonha') && (roleLower.includes('irmã') || roleLower.includes('irmão') || roleLower.includes('tio') || roleLower.includes('tia') || roleLower.includes('pai') || roleLower.includes('mãe'))) {
+        generationMap[m.id] = 1;
+      }
+      // Pais diretos (Geração 1)
+      else if (roleLower === 'pai/mãe' || roleLower === 'mãe' || roleLower === 'pai') {
+        generationMap[m.id] = 1;
+      }
+      // Filhos (Geração 3)
+      else if (roleLower === 'filho' || roleLower === 'filho(a)') {
+        generationMap[m.id] = 3;
+      }
+      // Irmãos do fundador (Geração 2)
+      else if ((roleLower === 'irmão' || roleLower === 'irmã') && !nameLower.includes('bertonha')) {
+        generationMap[m.id] = 2;
+      }
+    });
+
     let changed = true;
     let iterations = 0;
     const maxIterations = 100;
