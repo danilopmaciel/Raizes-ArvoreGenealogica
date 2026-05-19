@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260518_10';
-import StorageManager from './storage.js?v=20260518_10';
-import FamilyManager from './family.js?v=20260518_10';
-import ModalManager from './modal.js?v=20260518_10';
-import TreeRenderer from './tree.js?v=20260518_10';
-import supabaseAdapterInstance from './supabase.js?v=20260518_10';
-import firebaseAdapterInstance from './firebase.js?v=20260518_10';
+import AuthManager from './auth.js?v=20260518_11';
+import StorageManager from './storage.js?v=20260518_11';
+import FamilyManager from './family.js?v=20260518_11';
+import ModalManager from './modal.js?v=20260518_11';
+import TreeRenderer from './tree.js?v=20260518_11';
+import supabaseAdapterInstance from './supabase.js?v=20260518_11';
+import firebaseAdapterInstance from './firebase.js?v=20260518_11';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -834,32 +834,49 @@ class App {
     const imageToCrop = document.getElementById('image-to-crop');
     imageToCrop.crossOrigin = 'anonymous'; // Atributo padrão de segurança CORS
 
-    // Se for uma URL externa (http/https), passa pelo proxy CORS para evitar bloqueio de Canvas Tainted
+    // Se for uma URL externa (http/https) e não for um Data URL base64
     if (imageSrc.startsWith('http://') || imageSrc.startsWith('https://')) {
       ModalManager.showToast('Carregando imagem para edição segura...', 'success');
-      try {
-        const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(imageSrc)}`;
-        const response = await fetch(proxyUrl);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          imageToCrop.src = reader.result; // Data URL seguro (same-origin)
-          this.initCropperInstance(imageToCrop);
-        };
-        reader.readAsDataURL(blob);
-        ModalManager.openModal('modal-crop');
-        return;
-      } catch (err) {
-        console.error('Erro ao buscar imagem via proxy CORS, tentando carregamento direto...', err);
-        // Fallback direto
+      
+      // Lista de proxies CORS robustos para tentar obter o Data URL limpo
+      const proxies = [
+        `https://corsproxy.io/?${encodeURIComponent(imageSrc)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(imageSrc)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(imageSrc)}`
+      ];
+
+      let success = false;
+      for (const proxyUrl of proxies) {
+        try {
+          const response = await fetch(proxyUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              imageToCrop.src = reader.result; // Data URL seguro (same-origin)
+              this.initCropperInstance(imageToCrop);
+            };
+            reader.readAsDataURL(blob);
+            ModalManager.openModal('modal-crop');
+            success = true;
+            break;
+          }
+        } catch (err) {
+          console.warn(`Falha no proxy CORS ${proxyUrl}, tentando próximo...`, err);
+        }
+      }
+
+      if (!success) {
+        console.warn('Todos os proxies falharam. Tentando carregamento direto com crossOrigin...');
         imageToCrop.src = imageSrc;
+        ModalManager.openModal('modal-crop');
+        this.initCropperInstance(imageToCrop);
       }
     } else {
       imageToCrop.src = imageSrc;
+      ModalManager.openModal('modal-crop');
+      this.initCropperInstance(imageToCrop);
     }
-    
-    ModalManager.openModal('modal-crop');
-    this.initCropperInstance(imageToCrop);
   }
 
   initCropperInstance(imageToCrop) {
