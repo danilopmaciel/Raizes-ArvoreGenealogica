@@ -609,17 +609,25 @@ class App {
           console.log('[DEBUG] Early return - missing data');
           return;
         }
-        if (confirm(`Tem certeza que deseja excluir ${this.editingMember.name} da árvore?`)) {
+        const confirmed = confirm(`Tem certeza que deseja excluir ${this.editingMember.name} da árvore?`);
+        console.log('[DEBUG] confirm() returned:', confirmed);
+        if (confirmed) {
           console.log('[DEBUG] User confirmed deletion');
+          console.log('[DEBUG] Calling FamilyManager.deleteMember with familyId:', this.activeFamily.id, 'memberId:', this.editingMember.id);
           try {
             FamilyManager.deleteMember(this.activeFamily.id, this.editingMember.id);
+            console.log('[DEBUG] deleteMember returned, showing toast...');
             ModalManager.showToast('Membro excluído com sucesso!', 'success');
             ModalManager.closeModal('modal-member');
             this.activeFamily = StorageManager.getActiveFamily();
+            console.log('[DEBUG] Rendering tree...');
             this.renderTree();
           } catch (err) {
+            console.log('[DEBUG] Error in deleteMember:', err);
             ModalManager.showToast(err.message, 'error');
           }
+        } else {
+          console.log('[DEBUG] User cancelled');
         }
       });
     }
