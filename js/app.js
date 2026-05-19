@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260518_09';
-import StorageManager from './storage.js?v=20260518_09';
-import FamilyManager from './family.js?v=20260518_09';
-import ModalManager from './modal.js?v=20260518_09';
-import TreeRenderer from './tree.js?v=20260518_09';
-import supabaseAdapterInstance from './supabase.js?v=20260518_09';
-import firebaseAdapterInstance from './firebase.js?v=20260518_09';
+import AuthManager from './auth.js?v=20260518_10';
+import StorageManager from './storage.js?v=20260518_10';
+import FamilyManager from './family.js?v=20260518_10';
+import ModalManager from './modal.js?v=20260518_10';
+import TreeRenderer from './tree.js?v=20260518_10';
+import supabaseAdapterInstance from './supabase.js?v=20260518_10';
+import firebaseAdapterInstance from './firebase.js?v=20260518_10';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -830,31 +830,60 @@ class App {
     ModalManager.openModal('modal-invite');
   }
 
-  openCropperModal(imageSrc) {
+  async openCropperModal(imageSrc) {
     const imageToCrop = document.getElementById('image-to-crop');
-    imageToCrop.src = imageSrc;
+    imageToCrop.crossOrigin = 'anonymous'; // Atributo padrão de segurança CORS
+
+    // Se for uma URL externa (http/https), passa pelo proxy CORS para evitar bloqueio de Canvas Tainted
+    if (imageSrc.startsWith('http://') || imageSrc.startsWith('https://')) {
+      ModalManager.showToast('Carregando imagem para edição segura...', 'success');
+      try {
+        const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(imageSrc)}`;
+        const response = await fetch(proxyUrl);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          imageToCrop.src = reader.result; // Data URL seguro (same-origin)
+          this.initCropperInstance(imageToCrop);
+        };
+        reader.readAsDataURL(blob);
+        ModalManager.openModal('modal-crop');
+        return;
+      } catch (err) {
+        console.error('Erro ao buscar imagem via proxy CORS, tentando carregamento direto...', err);
+        // Fallback direto
+        imageToCrop.src = imageSrc;
+      }
+    } else {
+      imageToCrop.src = imageSrc;
+    }
     
     ModalManager.openModal('modal-crop');
+    this.initCropperInstance(imageToCrop);
+  }
 
+  initCropperInstance(imageToCrop) {
     if (this.cropperInstance) {
       this.cropperInstance.destroy();
     }
 
     // Inicializa o Cropper após a imagem carregar no modal
     setTimeout(() => {
-      this.cropperInstance = new Cropper(imageToCrop, {
-        aspectRatio: 1,
-        viewMode: 1,
-        dragMode: 'move',
-        autoCropArea: 0.8,
-        restore: false,
-        guides: true,
-        center: true,
-        highlight: false,
-        cropBoxMovable: true,
-        cropBoxResizable: true,
-        toggleDragModeOnDblclick: false,
-      });
+      if (window.Cropper) {
+        this.cropperInstance = new Cropper(imageToCrop, {
+          aspectRatio: 1,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 0.8,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: false,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+        });
+      }
     }, 200);
   }
 }
