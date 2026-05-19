@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js';
-import StorageManager from './storage.js';
-import FamilyManager from './family.js';
-import ModalManager from './modal.js';
-import TreeRenderer from './tree.js';
-import supabaseAdapterInstance from './supabase.js';
-import firebaseAdapterInstance from './firebase.js';
+import AuthManager from './auth.js?v=20260518_01';
+import StorageManager from './storage.js?v=20260518_01';
+import FamilyManager from './family.js?v=20260518_01';
+import ModalManager from './modal.js?v=20260518_01';
+import TreeRenderer from './tree.js?v=20260518_01';
+import supabaseAdapterInstance from './supabase.js?v=20260518_01';
+import firebaseAdapterInstance from './firebase.js?v=20260518_01';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
@@ -183,15 +183,29 @@ class App {
         parents.forEach(parent => {
           if (!parent.childrenIds) parent.childrenIds = [];
           if (parent.childrenIds.length === 0) {
-            // Se o pai/mãe não tem filhos, conecta ao membro raiz da família (fundador) ou ao primeiro membro sem pai
-            const rootMember = membersMap.get(this.activeFamily.rootMemberId) || this.activeFamily.members.find(m => m.id !== parent.id && !m.parentId);
-            if (rootMember) {
-              rootMember.parentId = parent.id;
-              if (!parent.childrenIds.includes(rootMember.id)) {
-                parent.childrenIds.push(rootMember.id);
+            // Se o membro raiz já tem pai/mãe, busca o cônjuge ou outro membro sem pai
+            let childToLink = null;
+            const founder = membersMap.get(this.activeFamily.rootMemberId);
+            if (founder && !founder.parentId) {
+              childToLink = founder;
+            } else {
+              childToLink = this.activeFamily.members.find(m => m.id !== parent.id && !m.parentId && m.role !== 'Pai/Mãe' && m.role !== 'Pai' && m.role !== 'Mãe');
+            }
+            if (childToLink) {
+              childToLink.parentId = parent.id;
+              if (!parent.childrenIds.includes(childToLink.id)) {
+                parent.childrenIds.push(childToLink.id);
               }
               modified = true;
             }
+          }
+        });
+
+        // Limpeza automática de fotos legadas do Unsplash (substituindo pela silhueta limpa)
+        this.activeFamily.members.forEach(m => {
+          if (m.photo && m.photo.includes('unsplash.com')) {
+            m.photo = DEFAULT_SILHOUETTE;
+            modified = true;
           }
         });
 
