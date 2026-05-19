@@ -247,10 +247,10 @@ class TreeRenderer {
     this.updateTransform();
 
     // Desenha as conexões SVG dinâmicas após o navegador calcular o layout flexbox
-    setTimeout(() => this.drawConnections(family), 100);
+    setTimeout(() => this.drawConnections(gen3, gen2, gen1, gen0, founder, partner), 100);
   }
 
-  drawConnections(family) {
+  drawConnections(gen3, gen2, gen1, gen0, founder, partner) {
     if (!this.container) return;
     this.container.style.position = 'relative';
     const oldSvg = document.getElementById('tree-connections-svg');
@@ -268,39 +268,55 @@ class TreeRenderer {
 
     const containerRect = this.container.getBoundingClientRect();
 
-    family.members.forEach(member => {
-      // Se for cônjuge, NÃO desenha nenhuma linha vetorial ancestral vertical para os pais/tios da família!
-      if (member.role === 'Cônjuge' || member.partnerId) return;
+    // Função auxiliar para traçar a curva Bezier entre dois cards
+    const drawLine = (childId, parentId) => {
+      const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"]`);
+      const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"]`);
+      if (childCard && parentCard) {
+        const childRect = childCard.getBoundingClientRect();
+        const parentRect = parentCard.getBoundingClientRect();
 
-      if (member.parentId) {
-        const childCard = this.container.querySelector(`.tree-card[data-id="${member.id}"]`);
-        const parentCard = this.container.querySelector(`.tree-card[data-id="${member.parentId}"]`);
+        const childX = (childRect.left - containerRect.left) / this.zoomLevel + (childRect.width / this.zoomLevel) / 2;
+        const childY = (childRect.bottom - containerRect.top) / this.zoomLevel;
 
-        if (childCard && parentCard) {
-          const childRect = childCard.getBoundingClientRect();
-          const parentRect = parentCard.getBoundingClientRect();
+        const parentX = (parentRect.left - containerRect.left) / this.zoomLevel + (parentRect.width / this.zoomLevel) / 2;
+        const parentY = (parentRect.top - containerRect.top) / this.zoomLevel;
 
-          // Calcula as coordenadas exatas não-escaladas relativas ao this.container
-          const childX = (childRect.left - containerRect.left) / this.zoomLevel + (childRect.width / this.zoomLevel) / 2;
-          const childY = (childRect.bottom - containerRect.top) / this.zoomLevel;
-
-          const parentX = (parentRect.left - containerRect.left) / this.zoomLevel + (parentRect.width / this.zoomLevel) / 2;
-          const parentY = (parentRect.top - containerRect.top) / this.zoomLevel;
-
-          // Cria um elemento path SVG com curva Bezier cúbica elegante
-          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          const midY = (childY + parentY) / 2;
-          path.setAttribute('d', `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`);
-          path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante para representar a seiva/vida da árvore botânica!
-          path.setAttribute('stroke-width', '3');
-          path.setAttribute('fill', 'none');
-          path.setAttribute('stroke-dasharray', '6,4'); // Linha tracejada elegante para dar um efeito premium incrível!
-          path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
-
-          svg.appendChild(path);
-        }
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const midY = (childY + parentY) / 2;
+        path.setAttribute('d', `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`);
+        path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante para representar a seiva/vida da árvore botânica!
+        path.setAttribute('stroke-width', '3');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-dasharray', '6,4'); // Linha tracejada elegante para dar um efeito premium incrível!
+        path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
+        svg.appendChild(path);
       }
+    };
+
+    // 1. Conexões da Geração 3 (Filhos - Theo Ryu) para o Fundador (Danilo Maciel)
+    gen3.forEach(child => {
+      drawLine(child.id, founder.id);
     });
+
+    // 2. Conexões da Geração 2 (Fundador e seus Irmãos) para a Geração 1 (Mãe/Pai - Maria Lucia Bertonha)
+    // Identifica a mãe/pai na Geração 1 (ex: Maria Lucia Bertonha)
+    const parentInGen1 = gen1.find(m => m.role === 'Pai/Mãe' || m.role === 'Mãe' || m.role === 'Pai' || m.id === founder.parentId) || gen1[0];
+    if (parentInGen1) {
+      gen2.forEach(member => {
+        // Ignora o cônjuge (Bruna Miho não tem ligação de sangue com a mãe do Danilo!)
+        if (partner && member.id === partner.id) return;
+        drawLine(member.id, parentInGen1.id);
+      });
+    }
+
+    // 3. Conexões da Geração 1 (Maria Lucia Bertonha e Luiz Messias Bertonha) para a Geração 0 (Avó - Aparecida Minatel)
+    const grandParent = gen0[0];
+    if (grandParent) {
+      gen1.forEach(member => {
+        drawLine(member.id, grandParent.id);
+      });
+    }
 
     this.container.appendChild(svg);
   }
