@@ -220,6 +220,7 @@ class App {
       // Auto-healing / Correção Cirúrgica de Dados Específicos
       if (this.activeFamily.members && this.activeFamily.members.length > 1) {
         let modified = false;
+        const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
         
         // 1. Localiza os familiares da família Bertonha Maciel
         const danilo = this.activeFamily.members.find(m => m.id === 'mem_1779128298378' || (m.name && m.name.includes('Danilo') && m.name.includes('Maciel')));
