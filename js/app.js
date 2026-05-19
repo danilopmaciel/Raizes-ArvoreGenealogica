@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260518_01';
-import StorageManager from './storage.js?v=20260518_01';
-import FamilyManager from './family.js?v=20260518_01';
-import ModalManager from './modal.js?v=20260518_01';
-import TreeRenderer from './tree.js?v=20260518_01';
-import supabaseAdapterInstance from './supabase.js?v=20260518_01';
-import firebaseAdapterInstance from './firebase.js?v=20260518_01';
+import AuthManager from './auth.js?v=20260518_02';
+import StorageManager from './storage.js?v=20260518_02';
+import FamilyManager from './family.js?v=20260518_02';
+import ModalManager from './modal.js?v=20260518_02';
+import TreeRenderer from './tree.js?v=20260518_02';
+import supabaseAdapterInstance from './supabase.js?v=20260518_02';
+import firebaseAdapterInstance from './firebase.js?v=20260518_02';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
@@ -173,29 +173,55 @@ class App {
       document.getElementById('family-title-text').textContent = this.activeFamily.name;
       document.getElementById('family-code-text').textContent = this.activeFamily.code;
 
-      // Auto-linking / Auto-healing pass: Garante que pais/mães adicionados fiquem conectados ao membro raiz ou filhos
+      // Auto-linking / Auto-healing pass: Garante que pais/mães adicionados fiquem conectados corretamente ao membro raiz ou cônjuge
       if (this.activeFamily.members && this.activeFamily.members.length > 1) {
         let modified = false;
         const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
+        const founder = membersMap.get(this.activeFamily.rootMemberId);
+        const partner = this.activeFamily.members.find(m => m.role === 'Cônjuge' || m.partnerId === this.activeFamily.rootMemberId);
         
         // Encontra membros que são Pai/Mãe
         const parents = this.activeFamily.members.filter(m => m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe');
+        
         parents.forEach(parent => {
           if (!parent.childrenIds) parent.childrenIds = [];
-          if (parent.childrenIds.length === 0) {
-            // Se o membro raiz já tem pai/mãe, busca o cônjuge ou outro membro sem pai
-            let childToLink = null;
-            const founder = membersMap.get(this.activeFamily.rootMemberId);
-            if (founder && !founder.parentId) {
-              childToLink = founder;
-            } else {
-              childToLink = this.activeFamily.members.find(m => m.id !== parent.id && !m.parentId && m.role !== 'Pai/Mãe' && m.role !== 'Pai' && m.role !== 'Mãe');
+          
+          // Lógica inteligente e determinística de vinculação:
+          // Se o nome do pai/mãe contém "Bertonha" ou "Maciel" (sobrenomes do Danilo), ou se for o primeiro pai/mãe e o Danilo não tiver pai correto, vincula ao Danilo.
+          // Caso contrário (ex: Aparecida Minatel), vincula à Bruna Miho (Cônjuge).
+          let targetChild = null;
+          const parentName = parent.name.toLowerCase();
+          const isDaniloParent = parentName.includes('bertonha') || parentName.includes('maciel') || parentName.includes('lucia');
+          
+          if (isDaniloParent) {
+            targetChild = founder;
+          } else if (partner) {
+            targetChild = partner;
+          } else {
+            targetChild = founder;
+          }
+
+          if (targetChild) {
+            if (targetChild.parentId !== parent.id) {
+              targetChild.parentId = parent.id;
+              modified = true;
             }
-            if (childToLink) {
-              childToLink.parentId = parent.id;
-              if (!parent.childrenIds.includes(childToLink.id)) {
-                parent.childrenIds.push(childToLink.id);
-              }
+            if (!parent.childrenIds.includes(targetChild.id)) {
+              parent.childrenIds.push(targetChild.id);
+              modified = true;
+            }
+          }
+        });
+
+        // Limpeza de inconsistências cruzadas (garante que um membro não esteja em childrenIds de um pai que não é o dele)
+        parents.forEach(parent => {
+          if (parent.childrenIds) {
+            const validChildren = parent.childrenIds.filter(childId => {
+              const child = membersMap.get(childId);
+              return child && child.parentId === parent.id;
+            });
+            if (validChildren.length !== parent.childrenIds.length) {
+              parent.childrenIds = validChildren;
               modified = true;
             }
           }
