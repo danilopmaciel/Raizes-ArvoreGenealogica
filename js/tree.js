@@ -211,6 +211,81 @@ class TreeRenderer {
       }
     });
 
+    // 2. Cálculo Dinâmico de Coordenadas Horizontais (Eixo X)
+    const xMap = {};
+    xMap[founder.id] = 0;
+
+    let queue = [founder.id];
+    const visited = new Set([founder.id]);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      const currentX = xMap[currentId];
+      const member = membersMap.get(currentId);
+      if (!member) continue;
+
+      // A. Cônjuge: se houver cônjuge, coloca colado à direita (+1.5)
+      const partnerId = member.partnerId || (family.members.find(m => m.partnerId === member.id) || {}).id;
+      if (partnerId && xMap[partnerId] === undefined) {
+        xMap[partnerId] = currentX + 1.5;
+        if (!visited.has(partnerId)) {
+          visited.add(partnerId);
+          queue.push(partnerId);
+        }
+      }
+
+      // B. Filhos: distribui centralizados abaixo/acima do casal
+      const children = family.members.filter(m => m.parentId === member.id);
+      if (children.length > 0) {
+        let center = currentX;
+        if (partnerId && xMap[partnerId] !== undefined) {
+          center = (currentX + xMap[partnerId]) / 2;
+        }
+
+        const N = children.length;
+        const spacing = 1.8;
+        children.forEach((child, index) => {
+          if (xMap[child.id] === undefined) {
+            xMap[child.id] = center - ((N - 1) * spacing) / 2 + index * spacing;
+            if (!visited.has(child.id)) {
+              visited.add(child.id);
+              queue.push(child.id);
+            }
+          }
+        });
+      }
+
+      // C. Pai/Mãe (Geração Anterior): coloca diretamente no mesmo X do filho
+      if (member.parentId && xMap[member.parentId] === undefined) {
+        xMap[member.parentId] = currentX;
+        if (!visited.has(member.parentId)) {
+          visited.add(member.parentId);
+          queue.push(member.parentId);
+        }
+      }
+
+      // D. Irmãos (mesmo pai/mãe): distribui horizontalmente a partir do atual
+      if (member.parentId) {
+        const siblings = family.members.filter(m => m.parentId === member.parentId && m.id !== member.id);
+        siblings.forEach((sib, index) => {
+          if (xMap[sib.id] === undefined) {
+            xMap[sib.id] = currentX + (index + 1) * 2.0;
+            if (!visited.has(sib.id)) {
+              visited.add(sib.id);
+              queue.push(sib.id);
+            }
+          }
+        });
+      }
+    }
+
+    // Garante que todos tenham alguma coordenada X
+    family.members.forEach(m => {
+      if (xMap[m.id] === undefined) {
+        xMap[m.id] = 0;
+      }
+    });
+
     // Ordena as gerações de forma decrescente para que o topo fique com os mais novos (ex: 3, 2, 1, 0)
     const generations = [...new Set(Object.values(generationMap))].sort((a, b) => b - a);
 
@@ -220,20 +295,14 @@ class TreeRenderer {
 
       const levelContainer = document.createElement('div');
       levelContainer.className = 'tree-level';
-      
+
+      // Agrupa os membros em casais e indivíduos dentro desta geração e ordena por X
+      const nodes = [];
       const renderedIds = new Set();
 
-      // Vamos primeiro agrupar os membros em casais e indivíduos dentro desta geração
       membersInGen.forEach(member => {
         if (renderedIds.has(member.id)) return;
 
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'tree-node-group';
-        
-        const partnersDiv = document.createElement('div');
-        partnersDiv.className = 'tree-node-partners';
-
-        // Busca o parceiro cadastrado na mesma geração
         const partnerMember = membersInGen.find(m => 
           m.id === member.partnerId || 
           member.partnerId === m.id || 
@@ -241,24 +310,41 @@ class TreeRenderer {
         );
 
         if (partnerMember && !renderedIds.has(partnerMember.id)) {
-          // É um casal! Coloca ambos no mesmo partnersDiv
-          // Garante que o fundador ou o cônjuge principal do fundador fiquem na ordem correta se for a geração do casal principal
-          if (member.id === founder.id) {
-            partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-            partnersDiv.appendChild(this.createCard(partnerMember, family.rootMemberId));
-          } else if (partnerMember.id === founder.id) {
-            partnersDiv.appendChild(this.createCard(partnerMember, family.rootMemberId));
-            partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-          } else {
-            partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-            partnersDiv.appendChild(this.createCard(partnerMember, family.rootMemberId));
-          }
+          const members = [member, partnerMember].sort((a, b) => xMap[a.id] - xMap[b.id]);
+          const avgX = (xMap[member.id] + xMap[partnerMember.id]) / 2;
+          nodes.push({
+            type: 'couple',
+            members: members,
+            x: avgX
+          });
           renderedIds.add(member.id);
           renderedIds.add(partnerMember.id);
         } else {
-          // É um indivíduo isolado
-          partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+          nodes.push({
+            type: 'single',
+            member: member,
+            x: xMap[member.id]
+          });
           renderedIds.add(member.id);
+        }
+      });
+
+      // Ordena os nós (casais e indivíduos) pelo seu X médio
+      nodes.sort((a, b) => a.x - b.x);
+
+      // Renderiza os nós na ordem correta
+      nodes.forEach(node => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'tree-node-group';
+
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+
+        if (node.type === 'couple') {
+          partnersDiv.appendChild(this.createCard(node.members[0], family.rootMemberId));
+          partnersDiv.appendChild(this.createCard(node.members[1], family.rootMemberId));
+        } else {
+          partnersDiv.appendChild(this.createCard(node.member, family.rootMemberId));
         }
 
         groupDiv.appendChild(partnersDiv);
