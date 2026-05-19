@@ -99,78 +99,114 @@ class TreeRenderer {
     });
 
     const membersMap = new Map(family.members.map(m => [m.id, m]));
-    const rootMembers = family.members.filter(m => !m.parentId);
+    const founder = membersMap.get(family.rootMemberId) || family.members[0];
+    if (!founder) return;
 
-    // Cria o container do primeiro nível
-    const level1Container = document.createElement('div');
-    level1Container.className = 'tree-level';
+    // Identifica o cônjuge do fundador
+    const partner = family.members.find(m => m.role === 'Cônjuge' || m.partnerId === founder.id || founder.partnerId === m.id);
 
-    rootMembers.forEach(rootMember => {
-      // Verifica se o membro tem parceiro/cônjuge
-      let partner = null;
-      if (rootMember.partnerId && membersMap.has(rootMember.partnerId)) {
-        partner = membersMap.get(rootMember.partnerId);
-      }
-
-      // Para evitar renderizar o parceiro duas vezes como raiz
-      if (partner && partner.id < rootMember.id && !partner.parentId) {
-        return; // Já foi ou será renderizado no par do parceiro
-      }
-
-      const groupDiv = this.createNodeGroup(rootMember, partner, membersMap, family.rootMemberId);
-      level1Container.appendChild(groupDiv);
+    // Geração 1 (Tronco / Pais / Avós): Pais/mães do fundador e do cônjuge, ou membros com role 'Pai/Mãe', 'Pai', 'Mãe'
+    const gen1 = family.members.filter(m => {
+      if (m.id === founder.id || (partner && m.id === partner.id)) return false;
+      return m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe' || m.id === founder.parentId || (partner && m.id === partner.parentId);
     });
 
-    this.container.appendChild(level1Container);
-    this.updateTransform();
-  }
+    // Geração 2 (Casal Principal / Irmãos): Fundador, cônjuge e irmãos
+    const gen2 = family.members.filter(m => {
+      if (m.id === founder.id || (partner && m.id === partner.id)) return true;
+      if (gen1.some(p => p.id === m.id)) return false;
+      return (founder.parentId && m.parentId === founder.parentId) || (partner && partner.parentId && m.parentId === partner.parentId);
+    });
 
-  createNodeGroup(member, partner, membersMap, familyRootId) {
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'tree-node-group';
+    // Geração 3 (Galhos / Filhos): Filhos do casal ou com role 'Filho', 'Filho(a)'
+    const gen3 = family.members.filter(m => {
+      if (gen1.some(p => p.id === m.id) || gen2.some(p => p.id === m.id)) return false;
+      return m.role === 'Filho' || m.role === 'Filho(a)' || m.parentId === founder.id || (partner && m.parentId === partner.id);
+    });
 
-    const partnersDiv = document.createElement('div');
-    partnersDiv.className = 'tree-node-partners';
+    // Outros membros (garantia de que ninguém fique órfão na tela)
+    const assignedIds = new Set([...gen1, ...gen2, ...gen3].map(m => m.id));
+    const others = family.members.filter(m => !assignedIds.has(m.id));
 
-    const memberCard = this.createCard(member, familyRootId);
-    partnersDiv.appendChild(memberCard);
-
-    if (partner) {
-      const partnerCard = this.createCard(partner, familyRootId);
-      partnersDiv.appendChild(partnerCard);
-    }
-
-    groupDiv.appendChild(partnersDiv);
-
-    // Renderiza os filhos deste membro (ou do casal)
-    const childrenIds = member.childrenIds || member.children || [];
-    if (partner) {
-      const partnerChildren = partner.childrenIds || partner.children || [];
-      partnerChildren.forEach(cid => {
-        if (!childrenIds.includes(cid)) childrenIds.push(cid);
+    // Renderiza Geração 1 (Tronco / Pais / Avós)
+    if (gen1.length > 0) {
+      const level1Container = document.createElement('div');
+      level1Container.className = 'tree-level';
+      gen1.forEach(member => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'tree-node-group';
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+        groupDiv.appendChild(partnersDiv);
+        level1Container.appendChild(groupDiv);
       });
+      this.container.appendChild(level1Container);
     }
 
-    if (childrenIds.length > 0) {
-      const childrenContainer = document.createElement('div');
-      childrenContainer.className = 'tree-level';
+    // Renderiza Geração 2 (Fundador e Cônjuge)
+    if (gen2.length > 0) {
+      const level2Container = document.createElement('div');
+      level2Container.className = 'tree-level';
+      
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'tree-node-group';
+      const partnersDiv = document.createElement('div');
+      partnersDiv.className = 'tree-node-partners';
+      
+      // Renderiza o fundador e o cônjuge unidos
+      if (gen2.some(m => m.id === founder.id)) {
+        partnersDiv.appendChild(this.createCard(founder, family.rootMemberId));
+      }
+      if (partner && gen2.some(m => m.id === partner.id)) {
+        partnersDiv.appendChild(this.createCard(partner, family.rootMemberId));
+      }
 
-      childrenIds.forEach(childId => {
-        const child = membersMap.get(childId);
-        if (child) {
-          let childPartner = null;
-          if (child.partnerId && membersMap.has(child.partnerId)) {
-            childPartner = membersMap.get(child.partnerId);
-          }
-          const childGroup = this.createNodeGroup(child, childPartner, membersMap, familyRootId);
-          childrenContainer.appendChild(childGroup);
+      // Renderiza outros irmãos
+      gen2.forEach(m => {
+        if (m.id !== founder.id && (!partner || m.id !== partner.id)) {
+          partnersDiv.appendChild(this.createCard(m, family.rootMemberId));
         }
       });
 
-      groupDiv.appendChild(childrenContainer);
+      groupDiv.appendChild(partnersDiv);
+      level2Container.appendChild(groupDiv);
+      this.container.appendChild(level2Container);
     }
 
-    return groupDiv;
+    // Renderiza Geração 3 (Galhos / Filhos)
+    if (gen3.length > 0) {
+      const level3Container = document.createElement('div');
+      level3Container.className = 'tree-level';
+      gen3.forEach(member => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'tree-node-group';
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+        groupDiv.appendChild(partnersDiv);
+        level3Container.appendChild(groupDiv);
+      });
+      this.container.appendChild(level3Container);
+    }
+
+    // Renderiza Outros (se houver)
+    if (others.length > 0) {
+      const level4Container = document.createElement('div');
+      level4Container.className = 'tree-level';
+      others.forEach(member => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'tree-node-group';
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+        groupDiv.appendChild(partnersDiv);
+        level4Container.appendChild(groupDiv);
+      });
+      this.container.appendChild(level4Container);
+    }
+
+    this.updateTransform();
   }
 
   createCard(member, familyRootId) {

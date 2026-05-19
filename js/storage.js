@@ -99,12 +99,21 @@ const DEMO_FAMILY = {
 
 class StorageManager {
   static getCurrentUser() {
-    const user = localStorage.getItem(STORAGE_KEY_USER);
-    return user ? JSON.parse(user) : null;
+    const userStr = localStorage.getItem(STORAGE_KEY_USER);
+    if (!userStr) return null;
+    const user = JSON.parse(userStr);
+    if (user && user.photo && (user.photo.includes('unsplash.com') || user.photo.includes('<svg'))) {
+      user.photo = DEFAULT_SILHOUETTE;
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+    }
+    return user;
   }
 
   static setCurrentUser(user) {
     if (user) {
+      if (user.photo && (user.photo.includes('unsplash.com') || user.photo.includes('<svg'))) {
+        user.photo = DEFAULT_SILHOUETTE;
+      }
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
     } else {
       localStorage.removeItem(STORAGE_KEY_USER);
@@ -112,8 +121,24 @@ class StorageManager {
   }
 
   static getFamilies() {
-    const families = localStorage.getItem(STORAGE_KEY_FAMILIES);
-    return families ? JSON.parse(families) : [];
+    const familiesStr = localStorage.getItem(STORAGE_KEY_FAMILIES);
+    if (!familiesStr) return [];
+    const families = JSON.parse(familiesStr);
+    let modified = false;
+    families.forEach(f => {
+      if (f && f.members) {
+        f.members.forEach(m => {
+          if (m.photo && (m.photo.includes('unsplash.com') || m.photo.includes('<svg'))) {
+            m.photo = DEFAULT_SILHOUETTE;
+            modified = true;
+          }
+        });
+      }
+    });
+    if (modified) {
+      localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+    }
+    return families;
   }
 
   static saveFamilies(families) {
