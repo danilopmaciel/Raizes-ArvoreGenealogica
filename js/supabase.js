@@ -66,6 +66,17 @@ class SupabaseAdapter {
 
       // 2. Salva os membros da família
       if (family.members && family.members.length > 0) {
+        // A. Remove membros que foram excluídos localmente
+        const currentMemberIds = family.members.map(m => m.id);
+        const { error: delError } = await this.client
+          .from('raizes_members')
+          .delete()
+          .eq('family_id', family.id)
+          .not('id', 'in', `(${currentMemberIds.join(',')})`);
+        
+        if (delError) console.error('Erro ao limpar membros antigos no Supabase:', delError);
+
+        // B. Upsert dos membros atuais
         const membersData = family.members.map(m => ({
           id: m.id,
           family_id: family.id,

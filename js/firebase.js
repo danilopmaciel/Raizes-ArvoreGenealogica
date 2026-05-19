@@ -86,6 +86,17 @@ class FirebaseAdapter {
       // Salva os membros em uma subcoleção ou coleção separada
       if (familyData.members && Array.isArray(familyData.members)) {
         const batch = this.db.batch();
+
+        // 1. Busca membros existentes no Firestore para esta família e remove os que foram excluídos localmente
+        const existingMembersSnapshot = await this.db.collection('raizes_members').where('familyId', '==', familyData.id).get();
+        const currentMemberIds = new Set(familyData.members.map(m => m.id));
+        existingMembersSnapshot.forEach(doc => {
+          if (!currentMemberIds.has(doc.id)) {
+            batch.delete(doc.ref);
+          }
+        });
+
+        // 2. Atualiza/insere os membros atuais
         for (const member of familyData.members) {
           const memberRef = this.db.collection('raizes_members').doc(member.id);
           const memberDoc = {
