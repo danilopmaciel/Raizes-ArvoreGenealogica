@@ -128,23 +128,39 @@ class TreeRenderer {
     const assignedIds = new Set([...gen1, ...gen2, ...gen3].map(m => m.id));
     const others = family.members.filter(m => !assignedIds.has(m.id));
 
-    // Renderiza Geração 1 (Tronco / Pais / Avós)
-    if (gen1.length > 0) {
-      const level1Container = document.createElement('div');
-      level1Container.className = 'tree-level';
-      gen1.forEach(member => {
+    // Renderiza Outros no topo (se houver)
+    if (others.length > 0) {
+      const level4Container = document.createElement('div');
+      level4Container.className = 'tree-level';
+      others.forEach(member => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'tree-node-group';
         const partnersDiv = document.createElement('div');
         partnersDiv.className = 'tree-node-partners';
         partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
         groupDiv.appendChild(partnersDiv);
-        level1Container.appendChild(groupDiv);
+        level4Container.appendChild(groupDiv);
       });
-      this.container.appendChild(level1Container);
+      this.container.appendChild(level4Container);
     }
 
-    // Renderiza Geração 2 (Fundador e Cônjuge)
+    // Renderiza Geração 3 (Galhos / Filhos no TOPO da árvore)
+    if (gen3.length > 0) {
+      const level3Container = document.createElement('div');
+      level3Container.className = 'tree-level';
+      gen3.forEach(member => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'tree-node-group';
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+        groupDiv.appendChild(partnersDiv);
+        level3Container.appendChild(groupDiv);
+      });
+      this.container.appendChild(level3Container);
+    }
+
+    // Renderiza Geração 2 (Casal Principal no MEIO da árvore)
     if (gen2.length > 0) {
       const level2Container = document.createElement('div');
       level2Container.className = 'tree-level';
@@ -174,36 +190,20 @@ class TreeRenderer {
       this.container.appendChild(level2Container);
     }
 
-    // Renderiza Geração 3 (Galhos / Filhos)
-    if (gen3.length > 0) {
-      const level3Container = document.createElement('div');
-      level3Container.className = 'tree-level';
-      gen3.forEach(member => {
+    // Renderiza Geração 1 (Tronco / Pais / Avós na BASE da árvore)
+    if (gen1.length > 0) {
+      const level1Container = document.createElement('div');
+      level1Container.className = 'tree-level';
+      gen1.forEach(member => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'tree-node-group';
         const partnersDiv = document.createElement('div');
         partnersDiv.className = 'tree-node-partners';
         partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
         groupDiv.appendChild(partnersDiv);
-        level3Container.appendChild(groupDiv);
+        level1Container.appendChild(groupDiv);
       });
-      this.container.appendChild(level3Container);
-    }
-
-    // Renderiza Outros (se houver)
-    if (others.length > 0) {
-      const level4Container = document.createElement('div');
-      level4Container.className = 'tree-level';
-      others.forEach(member => {
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'tree-node-group';
-        const partnersDiv = document.createElement('div');
-        partnersDiv.className = 'tree-node-partners';
-        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-        groupDiv.appendChild(partnersDiv);
-        level4Container.appendChild(groupDiv);
-      });
-      this.container.appendChild(level4Container);
+      this.container.appendChild(level1Container);
     }
 
     this.updateTransform();
