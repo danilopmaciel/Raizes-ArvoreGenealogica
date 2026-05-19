@@ -102,155 +102,144 @@ class TreeRenderer {
     const founder = membersMap.get(family.rootMemberId) || family.members[0];
     if (!founder) return;
 
-    // Identifica o cônjuge do fundador
-    const partner = family.members.find(m => m.role === 'Cônjuge' || m.partnerId === founder.id || founder.partnerId === m.id);
+    // 1. Determinação Dinâmica de Gerações (Algoritmo de Propagação BFS)
+    const generationMap = {};
+    generationMap[founder.id] = 2; // O fundador é a âncora na Geração 2
 
-    // Geração 3 (Galhos / Filhos no TOPO da árvore): Filhos do fundador ou cônjuge, ou com role 'Filho', 'Filho(a)'
-    const gen3 = family.members.filter(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id)) return false;
-      return m.role === 'Filho' || m.role === 'Filho(a)' || m.parentId === founder.id || (partner && m.parentId === partner.id);
-    });
+    let changed = true;
+    let iterations = 0;
+    const maxIterations = 100;
 
-    // Geração 2 (Casal Principal + Irmãos no MEIO da árvore): Fundador, cônjuge, e irmãos do fundador/cônjuge
-    const gen2 = family.members.filter(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id)) return true;
-      if (gen3.some(c => c.id === m.id)) return false;
-      // Para ser irmão da Geração 2 (Irmão do Danilo ou da Bruna), o role tem que ser 'Irmão'/'Irmã' E NÃO PODE ter 'Bertonha' no nome (pois Bertonha é a família da mãe, Geração 1!)
-      const isFounderBro = (m.role === 'Irmão' || m.role === 'Irmã') && (!m.name || !m.name.includes('Bertonha'));
-      const isSiblingByParent = (founder.parentId && m.parentId === founder.parentId) || (partner && partner.parentId && m.parentId === partner.parentId);
-      return isFounderBro || isSiblingByParent;
-    });
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations++;
 
-    // Geração 1 (Pais / Tios / Maria Lucia e Luiz Messias Bertonha na BASE da árvore): Pais/mães do fundador ou cônjuge E seus irmãos (tios do fundador)
-    const gen1 = family.members.filter(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id) || gen2.some(p => p.id === m.id) || gen3.some(c => c.id === m.id)) return false;
-      // Se for Aparecida Minatel (avó), vai para gen0
-      if (m.name && m.name.includes('Aparecida')) return false;
-      // Entra se for Pai/Mãe, ou se tiver o mesmo parentId da Maria Lucia (irmãos da mãe/tios), ou se tiver role 'Tio', 'Tia'
-      // E TAMBÉM se tiver role 'Irmão'/'Irmã' E tiver 'Bertonha' no nome (pois é irmão da Maria Lucia Bertonha!)
-      const isParent = m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe' || m.id === founder.parentId || (partner && m.id === partner.parentId);
-      const isUncle = m.role === 'Tio' || m.role === 'Tia' || (founder.parentId && membersMap.has(founder.parentId) && m.parentId === membersMap.get(founder.parentId).parentId);
-      const isMotherBro = (m.role === 'Irmão' || m.role === 'Irmã') && m.name && m.name.includes('Bertonha');
-      return isParent || isUncle || isMotherBro;
-    });
+      family.members.forEach(m => {
+        const currentGen = generationMap[m.id];
+        if (currentGen !== undefined) {
+          // A. Propaga para o parceiro/cônjuge (mesma geração)
+          if (m.partnerId) {
+            if (generationMap[m.partnerId] === undefined) {
+              generationMap[m.partnerId] = currentGen;
+              changed = true;
+            }
+          }
+          const partnerOfM = family.members.find(p => p.partnerId === m.id);
+          if (partnerOfM && generationMap[partnerOfM.id] === undefined) {
+            generationMap[partnerOfM.id] = currentGen;
+            changed = true;
+          }
 
-    // Geração 0 (Avós / Aparecida Minatel na BASE MAIS PROFUNDA DA TERRA): Pais/mães da gen1 (ex: Aparecida Minatel)
-    const gen0 = family.members.filter(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id) || gen3.some(c => c.id === m.id) || gen2.some(p => p.id === m.id) || gen1.some(p => p.id === m.id)) return false;
-      return m.name && m.name.includes('Aparecida');
-    });
+          // B. Propaga para o pai/mãe (geração anterior: g - 1)
+          if (m.parentId) {
+            if (generationMap[m.parentId] === undefined) {
+              generationMap[m.parentId] = currentGen - 1;
+              changed = true;
+            }
+          }
 
-    // Outros membros (garantia de que ninguém fique órfão na tela)
-    const assignedIds = new Set([...gen0, ...gen1, ...gen2, ...gen3].map(m => m.id));
-    const others = family.members.filter(m => !assignedIds.has(m.id));
+          // C. Propaga para os filhos (geração seguinte: g + 1)
+          if (m.childrenIds && m.childrenIds.length > 0) {
+            m.childrenIds.forEach(childId => {
+              if (generationMap[childId] === undefined) {
+                generationMap[childId] = currentGen + 1;
+                changed = true;
+              }
+            });
+          }
+          family.members.forEach(child => {
+            if (child.parentId === m.id && generationMap[child.id] === undefined) {
+              generationMap[child.id] = currentGen + 1;
+              changed = true;
+            }
+          });
 
-    // 1. Renderiza Outros no topo (se houver)
-    if (others.length > 0) {
-      const level4Container = document.createElement('div');
-      level4Container.className = 'tree-level';
-      others.forEach(member => {
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'tree-node-group';
-        const partnersDiv = document.createElement('div');
-        partnersDiv.className = 'tree-node-partners';
-        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-        groupDiv.appendChild(partnersDiv);
-        level4Container.appendChild(groupDiv);
-      });
-      this.container.appendChild(level4Container);
-    }
-
-    // 2. Renderiza Geração 3 (Galhos / Filhos no TOPO da árvore)
-    if (gen3.length > 0) {
-      const level3Container = document.createElement('div');
-      level3Container.className = 'tree-level';
-      gen3.forEach(member => {
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'tree-node-group';
-        const partnersDiv = document.createElement('div');
-        partnersDiv.className = 'tree-node-partners';
-        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-        groupDiv.appendChild(partnersDiv);
-        level3Container.appendChild(groupDiv);
-      });
-      this.container.appendChild(level3Container);
-    }
-
-    // 3. Renderiza Geração 2 (Casal Principal + Irmãos no MEIO da árvore)
-    if (gen2.length > 0) {
-      const level2Container = document.createElement('div');
-      level2Container.className = 'tree-level';
-      
-      // A. Renderiza irmãos do fundador (ex: Leandro) à ESQUERDA do casal, em seu próprio grupo independente
-      gen2.forEach(m => {
-        if (m.id !== founder.id && (!partner || m.id !== partner.id)) {
-          const broGroup = document.createElement('div');
-          broGroup.className = 'tree-node-group';
-          const broPartners = document.createElement('div');
-          broPartners.className = 'tree-node-partners';
-          broPartners.appendChild(this.createCard(m, family.rootMemberId));
-          broGroup.appendChild(broPartners);
-          level2Container.appendChild(broGroup);
+          // D. Propaga para os irmãos (mesma geração)
+          if (m.parentId) {
+            family.members.forEach(sibling => {
+              if (sibling.parentId === m.parentId && sibling.id !== m.id) {
+                if (generationMap[sibling.id] === undefined) {
+                  generationMap[sibling.id] = currentGen;
+                  changed = true;
+                }
+              }
+            });
+          }
         }
       });
+    }
 
-      // B. Renderiza o grupo exclusivo do casal (Danilo e Bruna unidos pela linha rosa)
-      const coupleGroup = document.createElement('div');
-      coupleGroup.className = 'tree-node-group';
-      const couplePartners = document.createElement('div');
-      couplePartners.className = 'tree-node-partners';
+    // Se houver algum membro desconectado, coloca na geração 2 por padrão
+    family.members.forEach(m => {
+      if (generationMap[m.id] === undefined) {
+        generationMap[m.id] = 2;
+      }
+    });
+
+    // Ordena as gerações de forma decrescente para que o topo fique com os mais novos (ex: 3, 2, 1, 0)
+    const generations = [...new Set(Object.values(generationMap))].sort((a, b) => b - a);
+
+    generations.forEach(gen => {
+      const membersInGen = family.members.filter(m => generationMap[m.id] === gen);
+      if (membersInGen.length === 0) return;
+
+      const levelContainer = document.createElement('div');
+      levelContainer.className = 'tree-level';
       
-      if (gen2.some(m => m.id === founder.id)) {
-        couplePartners.appendChild(this.createCard(founder, family.rootMemberId));
-      }
-      if (partner && gen2.some(m => m.id === partner.id)) {
-        couplePartners.appendChild(this.createCard(partner, family.rootMemberId));
-      }
-      coupleGroup.appendChild(couplePartners);
-      level2Container.appendChild(coupleGroup);
+      const renderedIds = new Set();
 
-      this.container.appendChild(level2Container);
-    }
+      // Vamos primeiro agrupar os membros em casais e indivíduos dentro desta geração
+      membersInGen.forEach(member => {
+        if (renderedIds.has(member.id)) return;
 
-    // 4. Renderiza Geração 1 (Pais / Tios / Maria Lucia e Luiz Messias Bertonha na BASE da árvore)
-    if (gen1.length > 0) {
-      const level1Container = document.createElement('div');
-      level1Container.className = 'tree-level';
-      gen1.forEach(member => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'tree-node-group';
+        
         const partnersDiv = document.createElement('div');
         partnersDiv.className = 'tree-node-partners';
-        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
-        groupDiv.appendChild(partnersDiv);
-        level1Container.appendChild(groupDiv);
-      });
-      this.container.appendChild(level1Container);
-    }
 
-    // 5. Renderiza Geração 0 (Avós / Aparecida Minatel na BASE MAIS PROFUNDA DA TERRA)
-    if (gen0.length > 0) {
-      const level0Container = document.createElement('div');
-      level0Container.className = 'tree-level';
-      gen0.forEach(member => {
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'tree-node-group';
-        const partnersDiv = document.createElement('div');
-        partnersDiv.className = 'tree-node-partners';
-        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+        // Busca o parceiro cadastrado na mesma geração
+        const partnerMember = membersInGen.find(m => 
+          m.id === member.partnerId || 
+          member.partnerId === m.id || 
+          (m.partnerId && m.partnerId === member.id)
+        );
+
+        if (partnerMember && !renderedIds.has(partnerMember.id)) {
+          // É um casal! Coloca ambos no mesmo partnersDiv
+          // Garante que o fundador ou o cônjuge principal do fundador fiquem na ordem correta se for a geração do casal principal
+          if (member.id === founder.id) {
+            partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+            partnersDiv.appendChild(this.createCard(partnerMember, family.rootMemberId));
+          } else if (partnerMember.id === founder.id) {
+            partnersDiv.appendChild(this.createCard(partnerMember, family.rootMemberId));
+            partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+          } else {
+            partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+            partnersDiv.appendChild(this.createCard(partnerMember, family.rootMemberId));
+          }
+          renderedIds.add(member.id);
+          renderedIds.add(partnerMember.id);
+        } else {
+          // É um indivíduo isolado
+          partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+          renderedIds.add(member.id);
+        }
+
         groupDiv.appendChild(partnersDiv);
-        level0Container.appendChild(groupDiv);
+        levelContainer.appendChild(groupDiv);
       });
-      this.container.appendChild(level0Container);
-    }
+
+      this.container.appendChild(levelContainer);
+    });
 
     this.updateTransform();
 
     // Desenha as conexões SVG dinâmicas após o navegador calcular o layout flexbox
-    setTimeout(() => this.drawConnections(gen3, gen2, gen1, gen0, founder, partner), 100);
+    setTimeout(() => this.drawConnections(family), 100);
   }
 
-  drawConnections(gen3, gen2, gen1, gen0, founder, partner) {
+  drawConnections(family) {
     if (!this.container) return;
     this.container.style.position = 'relative';
     const oldSvg = document.getElementById('tree-connections-svg');
@@ -285,38 +274,21 @@ class TreeRenderer {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const midY = (childY + parentY) / 2;
         path.setAttribute('d', `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`);
-        path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante para representar a seiva/vida da árvore botânica!
+        path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
         path.setAttribute('stroke-width', '3');
         path.setAttribute('fill', 'none');
-        path.setAttribute('stroke-dasharray', '6,4'); // Linha tracejada elegante para dar um efeito premium incrível!
+        path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
         path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
         svg.appendChild(path);
       }
     };
 
-    // 1. Conexões da Geração 3 (Filhos - Theo Ryu) para o Fundador (Danilo Maciel)
-    gen3.forEach(child => {
-      drawLine(child.id, founder.id);
+    // Desenha conexões verticais de filiação de forma 100% dinâmica
+    family.members.forEach(member => {
+      if (member.parentId) {
+        drawLine(member.id, member.parentId);
+      }
     });
-
-    // 2. Conexões da Geração 2 (Fundador e seus Irmãos) para a Geração 1 (Mãe/Pai - Maria Lucia Bertonha)
-    // Identifica a mãe/pai na Geração 1 (ex: Maria Lucia Bertonha)
-    const parentInGen1 = gen1.find(m => m.role === 'Pai/Mãe' || m.role === 'Mãe' || m.role === 'Pai' || m.id === founder.parentId) || gen1[0];
-    if (parentInGen1) {
-      gen2.forEach(member => {
-        // Ignora o cônjuge (Bruna Miho não tem ligação de sangue com a mãe do Danilo!)
-        if (partner && member.id === partner.id) return;
-        drawLine(member.id, parentInGen1.id);
-      });
-    }
-
-    // 3. Conexões da Geração 1 (Maria Lucia Bertonha e Luiz Messias Bertonha) para a Geração 0 (Avó - Aparecida Minatel)
-    const grandParent = gen0[0];
-    if (grandParent) {
-      gen1.forEach(member => {
-        drawLine(member.id, grandParent.id);
-      });
-    }
 
     this.container.appendChild(svg);
   }
