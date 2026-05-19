@@ -105,30 +105,41 @@ class TreeRenderer {
     // Identifica o cônjuge do fundador
     const partner = family.members.find(m => m.role === 'Cônjuge' || m.partnerId === founder.id || founder.partnerId === m.id);
 
-    // Geração 1 (Tronco / Pais / Avós): Pais/mães do fundador e do cônjuge, ou membros com role 'Pai/Mãe', 'Pai', 'Mãe'
-    const gen1 = family.members.filter(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id)) return false;
-      return m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe' || m.id === founder.parentId || (partner && m.id === partner.parentId);
-    });
-
-    // Geração 2 (Casal Principal / Irmãos): Fundador, cônjuge e irmãos
-    const gen2 = family.members.filter(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id)) return true;
-      if (gen1.some(p => p.id === m.id)) return false;
-      return (founder.parentId && m.parentId === founder.parentId) || (partner && partner.parentId && m.parentId === partner.parentId);
-    });
-
-    // Geração 3 (Galhos / Filhos): Filhos do casal ou com role 'Filho', 'Filho(a)'
+    // Geração 3 (Galhos / Filhos no TOPO da árvore): Filhos do fundador ou cônjuge, ou com role 'Filho', 'Filho(a)'
     const gen3 = family.members.filter(m => {
-      if (gen1.some(p => p.id === m.id) || gen2.some(p => p.id === m.id)) return false;
+      if (m.id === founder.id || (partner && m.id === partner.id)) return false;
       return m.role === 'Filho' || m.role === 'Filho(a)' || m.parentId === founder.id || (partner && m.parentId === partner.id);
     });
 
+    // Geração 2 (Casal Principal + Irmãos no MEIO da árvore): Fundador, cônjuge, e irmãos de ambos
+    const gen2 = family.members.filter(m => {
+      if (m.id === founder.id || (partner && m.id === partner.id)) return true;
+      if (gen3.some(c => c.id === m.id)) return false;
+      return m.role === 'Irmão' || m.role === 'Irmã' || (founder.parentId && m.parentId === founder.parentId) || (partner && partner.parentId && m.parentId === partner.parentId);
+    });
+
+    // Geração 1 (Pais / Tios / Maria Lucia e Luiz Messias Bertonha na BASE da árvore): Pais/mães do fundador ou cônjuge E seus irmãos (tios do fundador)
+    const gen1 = family.members.filter(m => {
+      if (m.id === founder.id || (partner && m.id === partner.id) || gen2.some(p => p.id === m.id) || gen3.some(c => c.id === m.id)) return false;
+      // Se for Aparecida Minatel (avó), vai para gen0
+      if (m.name && m.name.includes('Aparecida')) return false;
+      // Entra se for Pai/Mãe, ou se tiver o mesmo parentId da Maria Lucia (irmãos da mãe/tios), ou se tiver role 'Tio', 'Tia'
+      const isParent = m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe' || m.id === founder.parentId || (partner && m.id === partner.parentId);
+      const isUncle = m.role === 'Tio' || m.role === 'Tia' || (founder.parentId && membersMap.has(founder.parentId) && m.parentId === membersMap.get(founder.parentId).parentId);
+      return isParent || isUncle;
+    });
+
+    // Geração 0 (Avós / Aparecida Minatel na BASE MAIS PROFUNDA DA TERRA): Pais/mães da gen1 (ex: Aparecida Minatel)
+    const gen0 = family.members.filter(m => {
+      if (m.id === founder.id || (partner && m.id === partner.id) || gen3.some(c => c.id === m.id) || gen2.some(p => p.id === m.id) || gen1.some(p => p.id === m.id)) return false;
+      return m.name && m.name.includes('Aparecida');
+    });
+
     // Outros membros (garantia de que ninguém fique órfão na tela)
-    const assignedIds = new Set([...gen1, ...gen2, ...gen3].map(m => m.id));
+    const assignedIds = new Set([...gen0, ...gen1, ...gen2, ...gen3].map(m => m.id));
     const others = family.members.filter(m => !assignedIds.has(m.id));
 
-    // Renderiza Outros no topo (se houver)
+    // 1. Renderiza Outros no topo (se houver)
     if (others.length > 0) {
       const level4Container = document.createElement('div');
       level4Container.className = 'tree-level';
@@ -144,7 +155,7 @@ class TreeRenderer {
       this.container.appendChild(level4Container);
     }
 
-    // Renderiza Geração 3 (Galhos / Filhos no TOPO da árvore)
+    // 2. Renderiza Geração 3 (Galhos / Filhos no TOPO da árvore)
     if (gen3.length > 0) {
       const level3Container = document.createElement('div');
       level3Container.className = 'tree-level';
@@ -160,37 +171,43 @@ class TreeRenderer {
       this.container.appendChild(level3Container);
     }
 
-    // Renderiza Geração 2 (Casal Principal no MEIO da árvore)
+    // 3. Renderiza Geração 2 (Casal Principal + Irmãos no MEIO da árvore)
     if (gen2.length > 0) {
       const level2Container = document.createElement('div');
       level2Container.className = 'tree-level';
       
-      const groupDiv = document.createElement('div');
-      groupDiv.className = 'tree-node-group';
-      const partnersDiv = document.createElement('div');
-      partnersDiv.className = 'tree-node-partners';
-      
-      // Renderiza o fundador e o cônjuge unidos
-      if (gen2.some(m => m.id === founder.id)) {
-        partnersDiv.appendChild(this.createCard(founder, family.rootMemberId));
-      }
-      if (partner && gen2.some(m => m.id === partner.id)) {
-        partnersDiv.appendChild(this.createCard(partner, family.rootMemberId));
-      }
-
-      // Renderiza outros irmãos
+      // A. Renderiza irmãos do fundador (ex: Leandro) à ESQUERDA do casal, em seu próprio grupo independente
       gen2.forEach(m => {
         if (m.id !== founder.id && (!partner || m.id !== partner.id)) {
-          partnersDiv.appendChild(this.createCard(m, family.rootMemberId));
+          const broGroup = document.createElement('div');
+          broGroup.className = 'tree-node-group';
+          const broPartners = document.createElement('div');
+          broPartners.className = 'tree-node-partners';
+          broPartners.appendChild(this.createCard(m, family.rootMemberId));
+          broGroup.appendChild(broPartners);
+          level2Container.appendChild(broGroup);
         }
       });
 
-      groupDiv.appendChild(partnersDiv);
-      level2Container.appendChild(groupDiv);
+      // B. Renderiza o grupo exclusivo do casal (Danilo e Bruna unidos pela linha rosa)
+      const coupleGroup = document.createElement('div');
+      coupleGroup.className = 'tree-node-group';
+      const couplePartners = document.createElement('div');
+      couplePartners.className = 'tree-node-partners';
+      
+      if (gen2.some(m => m.id === founder.id)) {
+        couplePartners.appendChild(this.createCard(founder, family.rootMemberId));
+      }
+      if (partner && gen2.some(m => m.id === partner.id)) {
+        couplePartners.appendChild(this.createCard(partner, family.rootMemberId));
+      }
+      coupleGroup.appendChild(couplePartners);
+      level2Container.appendChild(coupleGroup);
+
       this.container.appendChild(level2Container);
     }
 
-    // Renderiza Geração 1 (Tronco / Pais / Avós na BASE da árvore)
+    // 4. Renderiza Geração 1 (Pais / Tios / Maria Lucia e Luiz Messias Bertonha na BASE da árvore)
     if (gen1.length > 0) {
       const level1Container = document.createElement('div');
       level1Container.className = 'tree-level';
@@ -204,6 +221,22 @@ class TreeRenderer {
         level1Container.appendChild(groupDiv);
       });
       this.container.appendChild(level1Container);
+    }
+
+    // 5. Renderiza Geração 0 (Avós / Aparecida Minatel na BASE MAIS PROFUNDA DA TERRA)
+    if (gen0.length > 0) {
+      const level0Container = document.createElement('div');
+      level0Container.className = 'tree-level';
+      gen0.forEach(member => {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'tree-node-group';
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+        partnersDiv.appendChild(this.createCard(member, family.rootMemberId));
+        groupDiv.appendChild(partnersDiv);
+        level0Container.appendChild(groupDiv);
+      });
+      this.container.appendChild(level0Container);
     }
 
     this.updateTransform();
