@@ -593,19 +593,7 @@ main {
   padding-bottom: 4rem;
 }
 
-.tree-level::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 0;
-  height: 2rem;
-  border-left: 2px solid var(--accent-purple);
-}
-
-.tree-level:first-child::before {
-  display: none;
-}
+/* Linhas verticais estáticas removidas em favor das conexões dinâmicas em SVG */
 
 .tree-node-group {
   display: flex;

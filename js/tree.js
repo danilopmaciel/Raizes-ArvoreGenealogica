@@ -245,6 +245,61 @@ class TreeRenderer {
     }
 
     this.updateTransform();
+
+    // Desenha as conexões SVG dinâmicas após o navegador calcular o layout flexbox
+    setTimeout(() => this.drawConnections(family), 100);
+  }
+
+  drawConnections(family) {
+    if (!this.container) return;
+    this.container.style.position = 'relative';
+    const oldSvg = document.getElementById('tree-connections-svg');
+    if (oldSvg) oldSvg.remove();
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'tree-connections-svg';
+    svg.style.position = 'absolute';
+    svg.style.top = '0';
+    svg.style.left = '0';
+    svg.style.width = '100%';
+    svg.style.height = '100%';
+    svg.style.pointerEvents = 'none';
+    svg.style.zIndex = '1';
+
+    const containerRect = this.container.getBoundingClientRect();
+
+    family.members.forEach(member => {
+      if (member.parentId) {
+        const childCard = this.container.querySelector(`.tree-card[data-id="${member.id}"]`);
+        const parentCard = this.container.querySelector(`.tree-card[data-id="${member.parentId}"]`);
+
+        if (childCard && parentCard) {
+          const childRect = childCard.getBoundingClientRect();
+          const parentRect = parentCard.getBoundingClientRect();
+
+          // Calcula as coordenadas exatas não-escaladas relativas ao this.container
+          const childX = (childRect.left - containerRect.left) / this.zoomLevel + (childRect.width / this.zoomLevel) / 2;
+          const childY = (childRect.bottom - containerRect.top) / this.zoomLevel;
+
+          const parentX = (parentRect.left - containerRect.left) / this.zoomLevel + (parentRect.width / this.zoomLevel) / 2;
+          const parentY = (parentRect.top - containerRect.top) / this.zoomLevel;
+
+          // Cria um elemento path SVG com curva Bezier cúbica elegante
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          const midY = (childY + parentY) / 2;
+          path.setAttribute('d', `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`);
+          path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante para representar a seiva/vida da árvore botânica!
+          path.setAttribute('stroke-width', '3');
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke-dasharray', '6,4'); // Linha tracejada elegante para dar um efeito premium incrível!
+          path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
+
+          svg.appendChild(path);
+        }
+      }
+    });
+
+    this.container.appendChild(svg);
   }
 
   createCard(member, familyRootId) {
