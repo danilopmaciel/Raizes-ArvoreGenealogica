@@ -46,6 +46,61 @@ class ModalManager {
     document.body.style.overflow = '';
   }
 
+  static confirm(message, onConfirm) {
+    const oldModal = document.getElementById('modal-custom-confirm');
+    if (oldModal) oldModal.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'modal-custom-confirm';
+    backdrop.className = 'modal-backdrop active';
+    backdrop.style.zIndex = '9999';
+
+    backdrop.innerHTML = `
+      <div class="modal-dialog" style="max-width: 400px; border: 1px solid rgba(139, 92, 246, 0.4); background: #0f172a; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
+        <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding: 15px 20px;">
+          <h3 class="modal-title" style="color: #f8fafc; font-size: 1.25rem;">Excluir Membro</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-confirm" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.5rem; transition: color 0.2s;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 25px 20px; font-size: 1rem; color: #cbd5e1; text-align: center;">
+          ${message}
+        </div>
+        <div class="modal-footer" style="display: flex; gap: 12px; justify-content: center; padding: 15px 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-confirm" style="min-width: 100px;">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="btn-confirm-delete-action" style="background: #ef4444; border-color: #dc2626; color: #ffffff; min-width: 100px;">Excluir</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+    document.body.style.overflow = 'hidden';
+
+    const closeConfirm = () => {
+      backdrop.remove();
+      document.body.style.overflow = '';
+    };
+
+    backdrop.querySelector('#btn-close-confirm').addEventListener('click', closeConfirm);
+    backdrop.querySelector('#btn-cancel-confirm').addEventListener('click', closeConfirm);
+    
+    // Hover effects para o fechar
+    const closeBtn = backdrop.querySelector('#btn-close-confirm');
+    closeBtn.addEventListener('mouseenter', () => closeBtn.style.color = '#f8fafc');
+    closeBtn.addEventListener('mouseleave', () => closeBtn.style.color = '#94a3b8');
+
+    backdrop.querySelector('#btn-confirm-delete-action').addEventListener('click', () => {
+      closeConfirm();
+      if (typeof onConfirm === 'function') {
+        onConfirm();
+      }
+    });
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) {
+        closeConfirm();
+      }
+    });
+  }
+
   static showToast(message, type = 'success') {
     let container = document.querySelector('.toast-container');
     if (!container) {

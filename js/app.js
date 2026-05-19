@@ -22,7 +22,38 @@ class App {
     this.pendingMemberId = null;
     this.cropperInstance = null; // Instância do Cropper.js
 
+    window.debugDeleteClick = () => this.handleDeleteClick();
+
     document.addEventListener('DOMContentLoaded', () => this.init());
+  }
+
+  showDebug(msg) {
+    const el = document.getElementById('debug-status');
+    if (el) {
+      el.style.display = 'block';
+      el.textContent = msg;
+      setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
+    console.log('[DEBUG]', msg);
+  }
+
+  handleDeleteClick() {
+    this.showDebug(`🗑️ Delete clicado! editingMember: ${this.editingMember?.name || 'NULO'}`);
+    if (!this.editingMember || !this.activeFamily) {
+      this.showDebug('❌ Dados insuficientes para excluir');
+      return;
+    }
+    const confirmed = confirm(`Tem certeza que deseja excluir ${this.editingMember.name}?`);
+    if (confirmed) {
+      this.showDebug('✅ Usuário confirmou exclusão');
+      FamilyManager.deleteMember(this.activeFamily.id, this.editingMember.id);
+      ModalManager.showToast('Membro excluído!', 'success');
+      ModalManager.closeModal('modal-member');
+      this.activeFamily = StorageManager.getActiveFamily();
+      this.renderTree();
+    } else {
+      this.showDebug('❌ Usuário cancelou');
+    }
   }
 
   async init() {
@@ -599,36 +630,21 @@ class App {
     }
 
     const btnDeleteMember = document.getElementById('btn-delete-member');
-    console.log('[DEBUG] setupEventListeners -> btnDeleteMember button:', btnDeleteMember);
     if (btnDeleteMember) {
       btnDeleteMember.addEventListener('click', () => {
-        console.log('[DEBUG] Delete button clicked!');
-        console.log('[DEBUG] editingMember:', this.editingMember);
-        console.log('[DEBUG] activeFamily:', this.activeFamily);
-        if (!this.editingMember || !this.activeFamily) {
-          console.log('[DEBUG] Early return - missing data');
-          return;
-        }
-        const confirmed = confirm(`Tem certeza que deseja excluir ${this.editingMember.name} da árvore?`);
-        console.log('[DEBUG] confirm() returned:', confirmed);
-        if (confirmed) {
-          console.log('[DEBUG] User confirmed deletion');
-          console.log('[DEBUG] Calling FamilyManager.deleteMember with familyId:', this.activeFamily.id, 'memberId:', this.editingMember.id);
+        if (!this.editingMember || !this.activeFamily) return;
+
+        ModalManager.confirm(`Tem certeza que deseja excluir <strong>${this.editingMember.name}</strong> da árvore? Esta ação é irreversível e removerá todas as conexões diretas deste membro.`, () => {
           try {
             FamilyManager.deleteMember(this.activeFamily.id, this.editingMember.id);
-            console.log('[DEBUG] deleteMember returned, showing toast...');
             ModalManager.showToast('Membro excluído com sucesso!', 'success');
             ModalManager.closeModal('modal-member');
             this.activeFamily = StorageManager.getActiveFamily();
-            console.log('[DEBUG] Rendering tree...');
             this.renderTree();
           } catch (err) {
-            console.log('[DEBUG] Error in deleteMember:', err);
             ModalManager.showToast(err.message, 'error');
           }
-        } else {
-          console.log('[DEBUG] User cancelled');
-        }
+        });
       });
     }
 

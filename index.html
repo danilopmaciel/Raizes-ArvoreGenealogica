@@ -365,7 +365,8 @@
 
         </div>
         <div class="modal-footer" style="display: flex; justify-content: space-between; width: 100%;">
-          <button type="button" id="btn-delete-member" class="btn btn-danger" style="display: none; background: #ef4444; border-color: #dc2626;">Excluir</button>
+          <button type="button" id="btn-delete-member" class="btn btn-danger" style="display: none; background: #ef4444; border-color: #dc2626;" onclick="window.debugDeleteClick()">Excluir</button>
+          <div id="debug-status" style="position: fixed; bottom: 10px; right: 10px; background: #1e293b; color: #10b981; padding: 10px; border-radius: 8px; font-family: monospace; display: none; z-index: 9999; max-width: 300px;"></div>
           <div style="display: flex; gap: 0.75rem; margin-left: auto;">
             <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
             <button type="submit" class="btn btn-emerald">Salvar Membro</button>
