@@ -52,10 +52,10 @@ class FirebaseAdapter {
   // Tenta reconectar automaticamente usando os dados salvos
   autoConnect() {
     const savedConfig = localStorage.getItem('raizes_firebase_config');
-    const dbType = localStorage.getItem('raizes_db_type');
-    if (savedConfig && dbType === 'firebase') {
+    if (savedConfig) {
       try {
         this.configure(JSON.parse(savedConfig));
+        localStorage.setItem('raizes_db_type', 'firebase');
         return true;
       } catch (err) {
         console.warn('Falha na reconexão automática ao Firebase:', err);
@@ -150,7 +150,7 @@ class FirebaseAdapter {
           role: m.role,
           parentId: m.parentId,
           partnerId: m.partnerId,
-          childrenIds: m.childrenIds || [],
+          childrenIds: Array.isArray(m.childrenIds) ? m.childrenIds : [],
           memberType: m.memberType
         });
       });

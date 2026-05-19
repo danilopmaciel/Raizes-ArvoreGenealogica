@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260519_22';
-import StorageManager from './storage.js?v=20260519_22';
-import FamilyManager from './family.js?v=20260519_22';
-import ModalManager from './modal.js?v=20260519_22';
-import TreeRenderer from './tree.js?v=20260519_22';
-import supabaseAdapterInstance from './supabase.js?v=20260519_22';
-import firebaseAdapterInstance from './firebase.js?v=20260519_22';
+import AuthManager from './auth.js';
+import StorageManager from './storage.js';
+import FamilyManager from './family.js';
+import ModalManager from './modal.js';
+import TreeRenderer from './tree.js';
+import supabaseAdapterInstance from './supabase.js';
+import firebaseAdapterInstance from './firebase.js';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -80,19 +80,27 @@ class App {
     // Configura Event Listeners Globais
     this.setupEventListeners();
 
-    // Auto-configura Firebase por padrão se não houver configuração salva
-    if (!localStorage.getItem('raizes_firebase_config')) {
-      const defaultFirebaseConfig = {
-        apiKey: "AIzaSyCXE1vJSroJJDFlOaFI7SmjQJr0OWj1kiQ",
-        authDomain: "raizes-9e7b7.firebaseapp.com",
-        projectId: "raizes-9e7b7",
-        storageBucket: "raizes-9e7b7.firebasestorage.app",
-        messagingSenderId: "764589881699",
-        appId: "1:764589881699:web:c71286afc9ba572f137b56"
-      };
-      firebaseAdapterInstance.configure(defaultFirebaseConfig);
-    } else {
-      firebaseAdapterInstance.autoConnect();
+    // Auto-configura Firebase com as credenciais padrão se não reconectado ou se o banco ativo não for firebase
+    const defaultFirebaseConfig = {
+      apiKey: "AIzaSyCXE1vJSroJJDFlOaFI7SmjQJr0OWj1kiQ",
+      authDomain: "raizes-9e7b7.firebaseapp.com",
+      projectId: "raizes-9e7b7",
+      storageBucket: "raizes-9e7b7.firebasestorage.app",
+      messagingSenderId: "764589881699",
+      appId: "1:764589881699:web:c71286afc9ba572f137b56"
+    };
+
+    let firebaseConfigured = false;
+    if (localStorage.getItem('raizes_firebase_config')) {
+      firebaseConfigured = firebaseAdapterInstance.autoConnect();
+    }
+
+    if (!firebaseConfigured || !firebaseAdapterInstance.isConfigured()) {
+      try {
+        firebaseAdapterInstance.configure(defaultFirebaseConfig);
+      } catch (err) {
+        console.error('Erro na auto-configuração inicial do Firebase:', err);
+      }
     }
 
     if (supabaseAdapterInstance.isConfigured() || firebaseAdapterInstance.isConfigured()) {
@@ -212,73 +220,98 @@ class App {
       // Auto-healing / Correção Cirúrgica de Dados Específicos
       if (this.activeFamily.members && this.activeFamily.members.length > 1) {
         let modified = false;
-        const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
         
-        // Localiza a Aparecida Minatel (avó)
-        const avo = this.activeFamily.members.find(m => {
-          const n = (m.name || '').toLowerCase();
-          return n.includes('aparecida') && n.includes('minatel');
-        });
+        // 1. Localiza os familiares da família Bertonha Maciel
+        const danilo = this.activeFamily.members.find(m => m.id === 'mem_1779128298378' || (m.name && m.name.includes('Danilo') && m.name.includes('Maciel')));
+        const bruna = this.activeFamily.members.find(m => m.id === 'mem_1779132818275_qrj1f' || (m.name && m.name.includes('Bruna') && m.name.includes('Miho')));
+        const theo = this.activeFamily.members.find(m => m.id === 'mem_1779147209590_ve62w' || (m.name && m.name.includes('Theo') && m.name.includes('Ryu')));
+        const mae = this.activeFamily.members.find(m => m.id === 'mem_1779147405702_d8hbw' || (m.name && m.name.includes('Maria') && m.name.includes('Lucia') && m.name.includes('Bertonha')));
+        const avo = this.activeFamily.members.find(m => m.id === 'mem_1779147493182_5drsp' || (m.name && m.name.includes('Aparecida') && m.name.includes('Minatel')));
 
-        // Localiza a Bruna Miho (esposa)
-        const esposa = this.activeFamily.members.find(m => {
-          const n = (m.name || '').toLowerCase();
-          return n.includes('bruna') && n.includes('miho');
-        });
-
-        // Se a esposa estiver incorretamente vinculada à avó, desvincula!
-        if (esposa && avo && esposa.parentId === avo.id) {
-          esposa.parentId = null;
-          modified = true;
-        }
-
-        // Localiza a Maria Lucia Bertonha (mãe)
-        const mae = this.activeFamily.members.find(m => {
-          const n = (m.name || '').toLowerCase();
-          return n.includes('maria') && n.includes('lucia') && n.includes('bertonha');
-        });
-
-        // Vincula a mãe à avó Aparecida Minatel se ainda não estiver
-        if (mae && avo && mae.parentId !== avo.id) {
-          mae.parentId = avo.id;
-          modified = true;
-        }
-
-        // Vincula todos os irmãos da mãe (tios Bertonha) à avó Aparecida Minatel se ainda não estiverem
+        // 2. Garante que childrenIds sejam sempre arrays válidos
         this.activeFamily.members.forEach(m => {
-          if (avo && m.name && m.name.includes('Bertonha') && m.id !== mae.id && m.id !== avo.id && (m.role === 'Irmão' || m.role === 'Irmã' || m.role === 'Tio' || m.role === 'Tia')) {
+          if (!m.childrenIds || !Array.isArray(m.childrenIds)) {
+            m.childrenIds = [];
+          }
+        });
+
+        // 3. Corrige Danilo: filho de Maria Lucia, parceiro de Bruna, pai de Theo
+        if (danilo) {
+          if (mae && danilo.parentId !== mae.id) {
+            danilo.parentId = mae.id;
+            modified = true;
+          }
+          if (bruna && danilo.partnerId !== bruna.id) {
+            danilo.partnerId = bruna.id;
+            modified = true;
+          }
+          if (theo && !danilo.childrenIds.includes(theo.id)) {
+            danilo.childrenIds.push(theo.id);
+            modified = true;
+          }
+        }
+
+        // 4. Corrige Bruna: sem parentId direto no tronco central, parceira de Danilo, mãe de Theo
+        if (bruna) {
+          if (bruna.parentId !== null) {
+            bruna.parentId = null;
+            modified = true;
+          }
+          if (danilo && bruna.partnerId !== danilo.id) {
+            bruna.partnerId = danilo.id;
+            modified = true;
+          }
+          if (theo && !bruna.childrenIds.includes(theo.id)) {
+            bruna.childrenIds.push(theo.id);
+            modified = true;
+          }
+        }
+
+        // 5. Corrige Theo: filho de Danilo
+        if (theo) {
+          if (danilo && theo.parentId !== danilo.id) {
+            theo.parentId = danilo.id;
+            modified = true;
+          }
+        }
+
+        // 6. Corrige Maria Lucia (mãe): filha de Aparecida, mãe de Danilo
+        if (mae) {
+          if (avo && mae.parentId !== avo.id) {
+            mae.parentId = avo.id;
+            modified = true;
+          }
+          if (danilo && !mae.childrenIds.includes(danilo.id)) {
+            mae.childrenIds.push(danilo.id);
+            modified = true;
+          }
+        }
+
+        // 7. Corrige Aparecida (avó): mãe de Maria Lucia
+        if (avo) {
+          if (avo.parentId !== null) {
+            avo.parentId = null;
+            modified = true;
+          }
+          if (mae && !avo.childrenIds.includes(mae.id)) {
+            avo.childrenIds.push(mae.id);
+            modified = true;
+          }
+        }
+
+        // 8. Vincula tios Bertonha à avó Aparecida se houver
+        this.activeFamily.members.forEach(m => {
+          if (avo && mae && m.name && m.name.includes('Bertonha') && m.id !== mae.id && m.id !== avo.id && (m.role === 'Irmão' || m.role === 'Irmã' || m.role === 'Tio' || m.role === 'Tia')) {
             if (m.parentId !== avo.id) {
               m.parentId = avo.id;
               modified = true;
             }
-          }
-        });
-
-        // Atualiza a lista childrenIds de Aparecida Minatel (avó) com base em quem tem ela como parentId
-        if (avo) {
-          const actualChildrenIds = this.activeFamily.members
-            .filter(m => m.parentId === avo.id)
-            .map(m => m.id);
-          
-          if (!avo.childrenIds) avo.childrenIds = [];
-          
-          // Se as listas forem diferentes, atualiza
-          const currentSet = new Set(avo.childrenIds);
-          const actualSet = new Set(actualChildrenIds);
-          let listsDifferent = currentSet.size !== actualSet.size;
-          if (!listsDifferent) {
-            for (let id of actualSet) {
-              if (!currentSet.has(id)) {
-                listsDifferent = true;
-                break;
-              }
+            if (!avo.childrenIds.includes(m.id)) {
+              avo.childrenIds.push(m.id);
+              modified = true;
             }
           }
-          if (listsDifferent) {
-            avo.childrenIds = actualChildrenIds;
-            modified = true;
-          }
-        }
+        });
 
         // Limpeza de inconsistências cruzadas geral para todos os membros
         this.activeFamily.members.forEach(m => {
