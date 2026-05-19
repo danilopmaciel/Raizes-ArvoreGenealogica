@@ -78,6 +78,7 @@ class TreeRenderer {
 
   render(family) {
     if (!this.container) return;
+    this.currentFamily = family;
     this.container.innerHTML = '';
 
     if (!family || !family.members || family.members.length === 0) {
@@ -130,10 +131,6 @@ class TreeRenderer {
       // Pais diretos (Geração 1)
       else if (roleLower === 'pai/mãe' || roleLower === 'mãe' || roleLower === 'pai') {
         generationMap[m.id] = 1;
-      }
-      // Filhos (Geração 3)
-      else if (roleLower === 'filho' || roleLower === 'filho(a)') {
-        generationMap[m.id] = 3;
       }
       // Irmãos do fundador (Geração 2)
       else if ((roleLower === 'irmão' || roleLower === 'irmã') && !nameLower.includes('bertonha')) {
@@ -441,6 +438,16 @@ class TreeRenderer {
     let displayRole = member.role;
     if ((member.role === 'Irmão' || member.role === 'Irmã') && member.name && member.name.includes('Bertonha')) {
       displayRole = member.role === 'Irmão' ? 'Tio' : 'Tia';
+    }
+
+    // Se o papel é "Filho" ou "Filha" mas o pai/mãe não é o fundador ou parceiro do fundador
+    if (this.currentFamily) {
+      const founder = this.currentFamily.members.find(m => m.id === familyRootId);
+      const partner = founder ? this.currentFamily.members.find(m => m.role === 'Cônjuge' || m.partnerId === founder.id || founder.partnerId === m.id) : null;
+      
+      if ((member.role === 'Filho' || member.role === 'Filha' || member.role === 'Filho(a)') && member.parentId && member.parentId !== familyRootId && (!partner || member.parentId !== partner.id)) {
+        displayRole = 'Primo/Prima';
+      }
     }
 
     // Configuração de Badges Visuais (In Memoriam vs Convite Pendente)
