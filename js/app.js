@@ -26,6 +26,7 @@ class App {
   }
 
   async init() {
+    console.log('[DEBUG] App.init() called');
     ModalManager.init();
 
     this.treeRenderer = new TreeRenderer('tree-container', 
@@ -598,10 +599,18 @@ class App {
     }
 
     const btnDeleteMember = document.getElementById('btn-delete-member');
+    console.log('[DEBUG] setupEventListeners -> btnDeleteMember button:', btnDeleteMember);
     if (btnDeleteMember) {
       btnDeleteMember.addEventListener('click', () => {
-        if (!this.editingMember || !this.activeFamily) return;
+        console.log('[DEBUG] Delete button clicked!');
+        console.log('[DEBUG] editingMember:', this.editingMember);
+        console.log('[DEBUG] activeFamily:', this.activeFamily);
+        if (!this.editingMember || !this.activeFamily) {
+          console.log('[DEBUG] Early return - missing data');
+          return;
+        }
         if (confirm(`Tem certeza que deseja excluir ${this.editingMember.name} da árvore?`)) {
+          console.log('[DEBUG] User confirmed deletion');
           try {
             FamilyManager.deleteMember(this.activeFamily.id, this.editingMember.id);
             ModalManager.showToast('Membro excluído com sucesso!', 'success');
@@ -753,6 +762,7 @@ class App {
     `;
 
     const btnDeleteMember = document.getElementById('btn-delete-member');
+    console.log('[DEBUG] openAddRelativeModal -> btnDeleteMember:', btnDeleteMember);
     if (btnDeleteMember) btnDeleteMember.style.display = 'none';
 
     ModalManager.openModal('modal-member');
@@ -792,11 +802,16 @@ class App {
     relSelect.innerHTML = `<option value="${member.role}">${member.role}</option>`;
 
     const btnDeleteMember = document.getElementById('btn-delete-member');
+    console.log('[DEBUG] openEditMemberModal -> btnDeleteMember:', btnDeleteMember);
+    console.log('[DEBUG] editingMember:', member);
+    console.log('[DEBUG] activeFamily.rootMemberId:', this.activeFamily?.rootMemberId);
     if (btnDeleteMember) {
       if (this.activeFamily && this.activeFamily.rootMemberId === member.id) {
-        btnDeleteMember.style.display = 'none'; // Não permite excluir o fundador
+        btnDeleteMember.style.display = 'none';
+        console.log('[DEBUG] Ocultando botão - é o root');
       } else {
-        btnDeleteMember.style.display = 'block';
+        btnDeleteMember.style.display = 'inline-flex';
+        console.log('[DEBUG] Mostrando botão - não é o root');
       }
     }
 
