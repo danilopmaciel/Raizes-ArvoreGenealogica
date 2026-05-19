@@ -208,73 +208,158 @@ class TreeRenderer {
       }
     });
 
-    // 2. Cálculo Dinâmico de Coordenadas Horizontais (Eixo X)
-    const xMap = {};
-    xMap[founder.id] = 0;
+    // 2. Cálculo Dinâmico de Coordenadas Horizontais (Eixo X) usando árvore de LayoutNodes
+    class LayoutNode {
+      constructor(type, members) {
+        this.type = type; // 'single' or 'couple'
+        this.members = members; // array of 1 or 2 member objects
+        this.children = [];
+        this.parent = null;
+        this.width = 0;
+        this.x = 0; // absolute X coordinate
+      }
+    }
 
-    let queue = [founder.id];
-    const visited = new Set([founder.id]);
+    const nodes = [];
+    const memberToNode = new Map();
+    const visitedMembers = new Set();
 
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      const currentX = xMap[currentId];
-      const member = membersMap.get(currentId);
-      if (!member) continue;
-
-      // A. Cônjuge: se houver cônjuge, coloca colado à direita (+1.5)
-      const partnerId = member.partnerId || (family.members.find(m => m.partnerId === member.id) || {}).id;
-      if (partnerId && xMap[partnerId] === undefined) {
-        xMap[partnerId] = currentX + 1.5;
-        if (!visited.has(partnerId)) {
-          visited.add(partnerId);
-          queue.push(partnerId);
+    // Encontrar casais e criar nodes
+    family.members.forEach(m => {
+      if (visitedMembers.has(m.id)) return;
+      
+      const partnerId = m.partnerId || (family.members.find(p => p.partnerId === m.id) || {}).id;
+      if (partnerId) {
+        const partner = family.members.find(p => p.id === partnerId);
+        if (partner) {
+          const coupleNode = new LayoutNode('couple', [m, partner]);
+          nodes.push(coupleNode);
+          memberToNode.set(m.id, coupleNode);
+          memberToNode.set(partner.id, coupleNode);
+          visitedMembers.add(m.id);
+          visitedMembers.add(partner.id);
+          return;
         }
       }
+      
+      const singleNode = new LayoutNode('single', [m]);
+      nodes.push(singleNode);
+      memberToNode.set(m.id, singleNode);
+      visitedMembers.add(m.id);
+    });
 
-      // B. Filhos: distribui centralizados abaixo/acima do casal
-      const children = family.members.filter(m => m.parentId === member.id);
-      if (children.length > 0) {
-        let center = currentX;
-        if (partnerId && xMap[partnerId] !== undefined) {
-          center = (currentX + xMap[partnerId]) / 2;
-        }
-
-        const N = children.length;
-        const spacing = 1.8;
-        children.forEach((child, index) => {
-          if (xMap[child.id] === undefined) {
-            xMap[child.id] = center - ((N - 1) * spacing) / 2 + index * spacing;
-            if (!visited.has(child.id)) {
-              visited.add(child.id);
-              queue.push(child.id);
-            }
+    // Estabelecer relações pai-filho entre os nodes
+    nodes.forEach(node => {
+      const parentId = node.members[0].parentId || (node.members[1] ? node.members[1].parentId : null);
+      if (parentId) {
+        const parentNode = memberToNode.get(parentId);
+        if (parentNode && parentNode !== node) {
+          node.parent = parentNode;
+          if (!parentNode.children.includes(node)) {
+            parentNode.children.push(node);
           }
+        }
+      }
+    });
+
+    // Encontrar os nodes raiz (que não têm pai)
+    const roots = nodes.filter(n => !n.parent);
+
+    // Medição recursiva de largura das subárvores
+    function measureNode(n) {
+      if (n.children.length === 0) {
+        n.width = n.type === 'couple' ? 2.2 : 1.0;
+        return n.width;
+      }
+      
+      let childrenWidthSum = 0;
+      n.children.forEach((child, index) => {
+        childrenWidthSum += measureNode(child);
+        if (index < n.children.length - 1) {
+          const nextChild = n.children[index + 1];
+          // Se qualquer um dos filhos adjacentes tiver filhos (uma subárvore/ramo), usa espaçamento maior de ramos (1.5).
+          // Caso contrário, são apenas irmãos folhas simples, então usa espaçamento menor (0.4).
+          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4;
+          childrenWidthSum += spacing;
+        }
+      });
+      
+      const selfWidth = n.type === 'couple' ? 2.2 : 1.0;
+      n.width = Math.max(selfWidth, childrenWidthSum);
+      return n.width;
+    }
+
+    // Mede todas as raízes
+    roots.forEach(root => measureNode(root));
+
+    // Posicionamento recursivo top-down
+    function positionNode(n, leftX) {
+      const selfWidth = n.type === 'couple' ? 2.2 : 1.0;
+      
+      if (n.children.length === 0) {
+        n.x = leftX + (n.width - selfWidth) / 2;
+        return;
+      }
+      
+      let childrenTotalWidth = 0;
+      n.children.forEach((child, index) => {
+        childrenTotalWidth += child.width;
+        if (index < n.children.length - 1) {
+          const nextChild = n.children[index + 1];
+          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4;
+          childrenTotalWidth += spacing;
+        }
+      });
+      
+      if (selfWidth >= childrenTotalWidth) {
+        n.x = leftX + (n.width - selfWidth) / 2;
+        
+        let childLeftX = leftX + (n.width - childrenTotalWidth) / 2;
+        n.children.forEach((child, index) => {
+          positionNode(child, childLeftX);
+          const nextChild = n.children[index + 1];
+          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4) : 0;
+          childLeftX += child.width + spacing;
         });
-      }
-
-      // C. Pai/Mãe (Geração Anterior): coloca diretamente no mesmo X do filho
-      if (member.parentId && xMap[member.parentId] === undefined) {
-        xMap[member.parentId] = currentX;
-        if (!visited.has(member.parentId)) {
-          visited.add(member.parentId);
-          queue.push(member.parentId);
-        }
-      }
-
-      // D. Irmãos (mesmo pai/mãe): distribui horizontalmente a partir do atual
-      if (member.parentId) {
-        const siblings = family.members.filter(m => m.parentId === member.parentId && m.id !== member.id);
-        siblings.forEach((sib, index) => {
-          if (xMap[sib.id] === undefined) {
-            xMap[sib.id] = currentX + (index + 1) * 2.0;
-            if (!visited.has(sib.id)) {
-              visited.add(sib.id);
-              queue.push(sib.id);
-            }
-          }
+      } else {
+        n.x = leftX + (n.width - selfWidth) / 2;
+        
+        let childLeftX = leftX;
+        n.children.forEach((child, index) => {
+          positionNode(child, childLeftX);
+          const nextChild = n.children[index + 1];
+          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4) : 0;
+          childLeftX += child.width + spacing;
         });
       }
     }
+
+    // Posiciona as raízes lado a lado
+    let currentRootLeftX = 0;
+    const rootSpacing = 2.0;
+    roots.forEach(root => {
+      positionNode(root, currentRootLeftX);
+      currentRootLeftX += root.width + rootSpacing;
+    });
+
+    // Normaliza os X para que o nó mais à esquerda comece exatamente em 0
+    if (nodes.length > 0) {
+      const minX = Math.min(...nodes.map(n => n.x));
+      nodes.forEach(n => {
+        n.x -= minX;
+      });
+    }
+
+    // Mapeia de volta as coordenadas para xMap
+    const xMap = {};
+    nodes.forEach(node => {
+      if (node.type === 'couple') {
+        xMap[node.members[0].id] = node.x;
+        xMap[node.members[1].id] = node.x + 1.2;
+      } else {
+        xMap[node.members[0].id] = node.x;
+      }
+    });
 
     // Garante que todos tenham alguma coordenada X
     family.members.forEach(m => {
@@ -292,9 +377,11 @@ class TreeRenderer {
 
       const levelContainer = document.createElement('div');
       levelContainer.className = 'tree-level';
+      levelContainer.style.justifyContent = 'flex-start';
+      levelContainer.style.gap = '0';
 
       // Agrupa os membros em casais e indivíduos dentro desta geração e ordena por X
-      const nodes = [];
+      const nodesInGen = [];
       const renderedIds = new Set();
 
       membersInGen.forEach(member => {
@@ -309,15 +396,15 @@ class TreeRenderer {
         if (partnerMember && !renderedIds.has(partnerMember.id)) {
           const members = [member, partnerMember].sort((a, b) => xMap[a.id] - xMap[b.id]);
           const avgX = (xMap[member.id] + xMap[partnerMember.id]) / 2;
-          nodes.push({
+          nodesInGen.push({
             type: 'couple',
             members: members,
-            x: avgX
+            x: xMap[members[0].id] // Usamos o X do primeiro membro para o posicionamento do grupo
           });
           renderedIds.add(member.id);
           renderedIds.add(partnerMember.id);
         } else {
-          nodes.push({
+          nodesInGen.push({
             type: 'single',
             member: member,
             x: xMap[member.id]
@@ -327,10 +414,11 @@ class TreeRenderer {
       });
 
       // Ordena os nós (casais e indivíduos) pelo seu X médio
-      nodes.sort((a, b) => a.x - b.x);
+      nodesInGen.sort((a, b) => a.x - b.x);
 
       // Renderiza os nós na ordem correta
-      nodes.forEach(node => {
+      let prevNode = null;
+      nodesInGen.forEach(node => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'tree-node-group';
 
@@ -345,7 +433,26 @@ class TreeRenderer {
         }
 
         groupDiv.appendChild(partnersDiv);
+
+        // Aplica o espaçamento horizontal exato baseado na diferença de X
+        const scale = 220; // 1 unidade = 220px
+        const cardWidth = 200;
+        const coupleWidth = 424;
+        const targetX = node.x * scale;
+
+        if (prevNode) {
+          const prevWidth = prevNode.type === 'couple' ? coupleWidth : cardWidth;
+          const prevEndX = prevNode.x * scale + prevWidth;
+          let marginLeft = targetX - prevEndX;
+          if (marginLeft < 24) marginLeft = 24; // Espaçamento mínimo de segurança (24px)
+          groupDiv.style.marginLeft = `${marginLeft}px`;
+        } else {
+          // Para o primeiro nó da linha, aplica a margem esquerda inicial para alinhar horizontalmente as gerações
+          groupDiv.style.marginLeft = `${targetX}px`;
+        }
+
         levelContainer.appendChild(groupDiv);
+        prevNode = node;
       });
 
       this.container.appendChild(levelContainer);
