@@ -111,11 +111,14 @@ class TreeRenderer {
       return m.role === 'Filho' || m.role === 'Filho(a)' || m.parentId === founder.id || (partner && m.parentId === partner.id);
     });
 
-    // Geração 2 (Casal Principal + Irmãos no MEIO da árvore): Fundador, cônjuge, e irmãos de ambos
+    // Geração 2 (Casal Principal + Irmãos no MEIO da árvore): Fundador, cônjuge, e irmãos do fundador/cônjuge
     const gen2 = family.members.filter(m => {
       if (m.id === founder.id || (partner && m.id === partner.id)) return true;
       if (gen3.some(c => c.id === m.id)) return false;
-      return m.role === 'Irmão' || m.role === 'Irmã' || (founder.parentId && m.parentId === founder.parentId) || (partner && partner.parentId && m.parentId === partner.parentId);
+      // Para ser irmão da Geração 2 (Irmão do Danilo ou da Bruna), o role tem que ser 'Irmão'/'Irmã' E NÃO PODE ter 'Bertonha' no nome (pois Bertonha é a família da mãe, Geração 1!)
+      const isFounderBro = (m.role === 'Irmão' || m.role === 'Irmã') && (!m.name || !m.name.includes('Bertonha'));
+      const isSiblingByParent = (founder.parentId && m.parentId === founder.parentId) || (partner && partner.parentId && m.parentId === partner.parentId);
+      return isFounderBro || isSiblingByParent;
     });
 
     // Geração 1 (Pais / Tios / Maria Lucia e Luiz Messias Bertonha na BASE da árvore): Pais/mães do fundador ou cônjuge E seus irmãos (tios do fundador)
@@ -124,9 +127,11 @@ class TreeRenderer {
       // Se for Aparecida Minatel (avó), vai para gen0
       if (m.name && m.name.includes('Aparecida')) return false;
       // Entra se for Pai/Mãe, ou se tiver o mesmo parentId da Maria Lucia (irmãos da mãe/tios), ou se tiver role 'Tio', 'Tia'
+      // E TAMBÉM se tiver role 'Irmão'/'Irmã' E tiver 'Bertonha' no nome (pois é irmão da Maria Lucia Bertonha!)
       const isParent = m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe' || m.id === founder.parentId || (partner && m.id === partner.parentId);
       const isUncle = m.role === 'Tio' || m.role === 'Tia' || (founder.parentId && membersMap.has(founder.parentId) && m.parentId === membersMap.get(founder.parentId).parentId);
-      return isParent || isUncle;
+      const isMotherBro = (m.role === 'Irmão' || m.role === 'Irmã') && m.name && m.name.includes('Bertonha');
+      return isParent || isUncle || isMotherBro;
     });
 
     // Geração 0 (Avós / Aparecida Minatel na BASE MAIS PROFUNDA DA TERRA): Pais/mães da gen1 (ex: Aparecida Minatel)
