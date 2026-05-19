@@ -269,6 +269,9 @@ class TreeRenderer {
     const containerRect = this.container.getBoundingClientRect();
 
     family.members.forEach(member => {
+      // Se for cônjuge, NÃO desenha nenhuma linha vetorial ancestral vertical para os pais/tios da família!
+      if (member.role === 'Cônjuge' || member.partnerId) return;
+
       if (member.parentId) {
         const childCard = this.container.querySelector(`.tree-card[data-id="${member.id}"]`);
         const parentCard = this.container.querySelector(`.tree-card[data-id="${member.parentId}"]`);
@@ -304,7 +307,7 @@ class TreeRenderer {
 
   createCard(member, familyRootId) {
     const card = document.createElement('div');
-    card.className = `tree-card ${member.id === familyRootId ? 'root-member' : ''}`;
+    card.className = `tree-card ${member.id === familyRootId ? 'root-member' : ''} ${member.role === 'Cônjuge' ? 'partner-card' : ''}`;
     card.dataset.id = member.id;
 
     // Formata a data de nascimento e falecimento
@@ -325,6 +328,12 @@ class TreeRenderer {
       datesText = `${birthStr || '?'} - ${deathStr || '?'}`;
     }
 
+    // Ajuste dinâmico de exibição do badge para Tio/Tia (irmãos da família Bertonha)
+    let displayRole = member.role;
+    if ((member.role === 'Irmão' || member.role === 'Irmã') && member.name && member.name.includes('Bertonha')) {
+      displayRole = member.role === 'Irmão' ? 'Tio' : 'Tia';
+    }
+
     // Configuração de Badges Visuais (In Memoriam vs Convite Pendente)
     let badgeHtml = '';
     let miniActionsHtml = `<button class="btn-mini btn-add-rel" title="Adicionar Parente" data-id="${member.id}">+</button>`;
@@ -340,7 +349,7 @@ class TreeRenderer {
       ${badgeHtml}
       <div class="member-avatar-wrapper">
         <img src="${member.photo}" alt="${member.name}" class="member-avatar" onerror="this.src='${DEFAULT_SILHOUETTE}'">
-        <span class="member-role-badge">${member.role}</span>
+        <span class="member-role-badge">${displayRole}</span>
       </div>
       <div class="member-info">
         <div class="member-name" title="${member.name}">${member.name}</div>

@@ -649,6 +649,13 @@ main {
   box-shadow: var(--shadow-glow-emerald);
 }
 
+.tree-card.partner-card {
+  border-radius: 35px;
+  border-color: rgba(236, 72, 153, 0.4);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(236, 72, 153, 0.03));
+  box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+}
+
 .member-avatar-wrapper {
   position: relative;
   width: 80px;
