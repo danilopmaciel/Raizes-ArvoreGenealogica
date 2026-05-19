@@ -364,9 +364,12 @@
           </div>
 
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
-          <button type="submit" class="btn btn-emerald">Salvar Membro</button>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; width: 100%;">
+          <button type="button" id="btn-delete-member" class="btn btn-danger" style="display: none; background: #ef4444; border-color: #dc2626;">Excluir</button>
+          <div style="display: flex; gap: 0.75rem; margin-left: auto;">
+            <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
+            <button type="submit" class="btn btn-emerald">Salvar Membro</button>
+          </div>
         </div>
       </form>
     </div>
@@ -477,6 +480,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260518_15"></script>
+  <script type="module" src="js/app.js?v=20260518_16"></script>
 </body>
 </html>

@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260518_15';
-import StorageManager from './storage.js?v=20260518_15';
-import FamilyManager from './family.js?v=20260518_15';
-import ModalManager from './modal.js?v=20260518_15';
-import TreeRenderer from './tree.js?v=20260518_15';
-import supabaseAdapterInstance from './supabase.js?v=20260518_15';
-import firebaseAdapterInstance from './firebase.js?v=20260518_15';
+import AuthManager from './auth.js?v=20260518_16';
+import StorageManager from './storage.js?v=20260518_16';
+import FamilyManager from './family.js?v=20260518_16';
+import ModalManager from './modal.js?v=20260518_16';
+import TreeRenderer from './tree.js?v=20260518_16';
+import supabaseAdapterInstance from './supabase.js?v=20260518_16';
+import firebaseAdapterInstance from './firebase.js?v=20260518_16';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -566,6 +566,24 @@ class App {
       });
     }
 
+    const btnDeleteMember = document.getElementById('btn-delete-member');
+    if (btnDeleteMember) {
+      btnDeleteMember.addEventListener('click', () => {
+        if (!this.editingMember || !this.activeFamily) return;
+        if (confirm(`Tem certeza que deseja excluir ${this.editingMember.name} da árvore?`)) {
+          try {
+            FamilyManager.deleteMember(this.activeFamily.id, this.editingMember.id);
+            ModalManager.showToast('Membro excluído com sucesso!', 'success');
+            ModalManager.closeModal('modal-member');
+            this.activeFamily = StorageManager.getActiveFamily();
+            this.renderTree();
+          } catch (err) {
+            ModalManager.showToast(err.message, 'error');
+          }
+        }
+      });
+    }
+
     const cardMerge = document.getElementById('conflict-card-merge');
     const cardNest = document.getElementById('conflict-card-nest');
     if (cardMerge && cardNest) {
@@ -703,6 +721,9 @@ class App {
       <option value="Irmão">Irmão / Irmã</option>
     `;
 
+    const btnDeleteMember = document.getElementById('btn-delete-member');
+    if (btnDeleteMember) btnDeleteMember.style.display = 'none';
+
     ModalManager.openModal('modal-member');
   }
 
@@ -738,6 +759,15 @@ class App {
 
     const relSelect = document.getElementById('member-relationship');
     relSelect.innerHTML = `<option value="${member.role}">${member.role}</option>`;
+
+    const btnDeleteMember = document.getElementById('btn-delete-member');
+    if (btnDeleteMember) {
+      if (this.activeFamily && this.activeFamily.rootMemberId === member.id) {
+        btnDeleteMember.style.display = 'none'; // Não permite excluir o fundador
+      } else {
+        btnDeleteMember.style.display = 'block';
+      }
+    }
 
     ModalManager.openModal('modal-member');
   }

@@ -106,6 +106,28 @@ class FamilyManager {
     }
   }
 
+  static deleteMember(familyId, memberId) {
+    const families = StorageManager.getFamilies();
+    const family = families.find(f => f.id === familyId);
+    if (!family) throw new Error('Família não encontrada.');
+
+    if (family.rootMemberId === memberId) {
+      throw new Error('Não é possível excluir o membro raiz/fundador da família.');
+    }
+
+    // Limpeza e auto-linking nos outros membros
+    family.members.forEach(m => {
+      if (m.parentId === memberId) m.parentId = null;
+      if (m.partnerId === memberId) m.partnerId = null;
+      if (m.childrenIds && m.childrenIds.includes(memberId)) {
+        m.childrenIds = m.childrenIds.filter(id => id !== memberId);
+      }
+    });
+
+    family.members = family.members.filter(m => m.id !== memberId);
+    StorageManager.saveFamily(family);
+  }
+
   static checkJoinConflict(inviteCode, currentFamily) {
     const targetFamily = StorageManager.findFamilyByCode(inviteCode);
     if (!targetFamily) {
