@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260519_19';
-import StorageManager from './storage.js?v=20260519_19';
-import FamilyManager from './family.js?v=20260519_19';
-import ModalManager from './modal.js?v=20260519_19';
-import TreeRenderer from './tree.js?v=20260519_19';
-import supabaseAdapterInstance from './supabase.js?v=20260519_19';
-import firebaseAdapterInstance from './firebase.js?v=20260519_19';
+import AuthManager from './auth.js?v=20260519_20';
+import StorageManager from './storage.js?v=20260519_20';
+import FamilyManager from './family.js?v=20260519_20';
+import ModalManager from './modal.js?v=20260519_20';
+import TreeRenderer from './tree.js?v=20260519_20';
+import supabaseAdapterInstance from './supabase.js?v=20260519_20';
+import firebaseAdapterInstance from './firebase.js?v=20260519_20';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -177,55 +177,86 @@ class App {
       document.getElementById('family-title-text').textContent = this.activeFamily.name;
       document.getElementById('family-code-text').textContent = this.activeFamily.code;
 
-      // Auto-linking / Auto-healing pass: Garante que pais/mães adicionados fiquem conectados corretamente ao membro raiz ou cônjuge
+      // Auto-healing / Correção Cirúrgica de Dados Específicos
       if (this.activeFamily.members && this.activeFamily.members.length > 1) {
         let modified = false;
         const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
-        const founder = membersMap.get(this.activeFamily.rootMemberId);
-        const partner = this.activeFamily.members.find(m => m.role === 'Cônjuge' || m.partnerId === this.activeFamily.rootMemberId);
         
-        // Encontra membros que são Pai/Mãe
-        const parents = this.activeFamily.members.filter(m => m.role === 'Pai/Mãe' || m.role === 'Pai' || m.role === 'Mãe');
-        
-        parents.forEach(parent => {
-          if (!parent.childrenIds) parent.childrenIds = [];
-          
-          // Lógica inteligente e determinística de vinculação:
-          // Se o nome do pai/mãe contém "Bertonha" ou "Maciel" (sobrenomes do Danilo), ou se for o primeiro pai/mãe e o Danilo não tiver pai correto, vincula ao Danilo.
-          // Caso contrário (ex: Aparecida Minatel), vincula à Bruna Miho (Cônjuge).
-          let targetChild = null;
-          const parentName = parent.name.toLowerCase();
-          const isDaniloParent = parentName.includes('bertonha') || parentName.includes('maciel') || parentName.includes('lucia');
-          
-          if (isDaniloParent) {
-            targetChild = founder;
-          } else if (partner) {
-            targetChild = partner;
-          } else {
-            targetChild = founder;
-          }
+        // Localiza a Aparecida Minatel (avó)
+        const avo = this.activeFamily.members.find(m => {
+          const n = (m.name || '').toLowerCase();
+          return n.includes('aparecida') && n.includes('minatel');
+        });
 
-          if (targetChild) {
-            if (targetChild.parentId !== parent.id) {
-              targetChild.parentId = parent.id;
-              modified = true;
-            }
-            if (!parent.childrenIds.includes(targetChild.id)) {
-              parent.childrenIds.push(targetChild.id);
+        // Localiza a Bruna Miho (esposa)
+        const esposa = this.activeFamily.members.find(m => {
+          const n = (m.name || '').toLowerCase();
+          return n.includes('bruna') && n.includes('miho');
+        });
+
+        // Se a esposa estiver incorretamente vinculada à avó, desvincula!
+        if (esposa && avo && esposa.parentId === avo.id) {
+          esposa.parentId = null;
+          modified = true;
+        }
+
+        // Localiza a Maria Lucia Bertonha (mãe)
+        const mae = this.activeFamily.members.find(m => {
+          const n = (m.name || '').toLowerCase();
+          return n.includes('maria') && n.includes('lucia') && n.includes('bertonha');
+        });
+
+        // Vincula a mãe à avó Aparecida Minatel se ainda não estiver
+        if (mae && avo && mae.parentId !== avo.id) {
+          mae.parentId = avo.id;
+          modified = true;
+        }
+
+        // Vincula todos os irmãos da mãe (tios Bertonha) à avó Aparecida Minatel se ainda não estiverem
+        this.activeFamily.members.forEach(m => {
+          if (avo && m.name && m.name.includes('Bertonha') && m.id !== mae.id && m.id !== avo.id && (m.role === 'Irmão' || m.role === 'Irmã' || m.role === 'Tio' || m.role === 'Tia')) {
+            if (m.parentId !== avo.id) {
+              m.parentId = avo.id;
               modified = true;
             }
           }
         });
 
-        // Limpeza de inconsistências cruzadas (garante que um membro não esteja em childrenIds de um pai que não é o dele)
-        parents.forEach(parent => {
-          if (parent.childrenIds) {
-            const validChildren = parent.childrenIds.filter(childId => {
+        // Atualiza a lista childrenIds de Aparecida Minatel (avó) com base em quem tem ela como parentId
+        if (avo) {
+          const actualChildrenIds = this.activeFamily.members
+            .filter(m => m.parentId === avo.id)
+            .map(m => m.id);
+          
+          if (!avo.childrenIds) avo.childrenIds = [];
+          
+          // Se as listas forem diferentes, atualiza
+          const currentSet = new Set(avo.childrenIds);
+          const actualSet = new Set(actualChildrenIds);
+          let listsDifferent = currentSet.size !== actualSet.size;
+          if (!listsDifferent) {
+            for (let id of actualSet) {
+              if (!currentSet.has(id)) {
+                listsDifferent = true;
+                break;
+              }
+            }
+          }
+          if (listsDifferent) {
+            avo.childrenIds = actualChildrenIds;
+            modified = true;
+          }
+        }
+
+        // Limpeza de inconsistências cruzadas geral para todos os membros
+        this.activeFamily.members.forEach(m => {
+          if (m.childrenIds) {
+            const validChildren = m.childrenIds.filter(childId => {
               const child = membersMap.get(childId);
-              return child && child.parentId === parent.id;
+              return child && child.parentId === m.id;
             });
-            if (validChildren.length !== parent.childrenIds.length) {
-              parent.childrenIds = validChildren;
+            if (validChildren.length !== m.childrenIds.length) {
+              m.childrenIds = validChildren;
               modified = true;
             }
           }
