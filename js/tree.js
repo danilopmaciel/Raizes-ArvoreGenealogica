@@ -209,43 +209,40 @@ class TreeRenderer {
     const founderCard = this.container.querySelector('.tree-card.root-member');
     if (!founderCard) return;
 
-    // Cálculo da posição do fundador relativa ao container usando offsetLeft acumulado.
-    // Requer que .tree-container tenha position: relative (para ser reconhecido como offsetParent).
-    let founderX = 0;
-    let el = founderCard;
-    let foundContainer = false;
-    while (el) {
-      if (el === this.container) { foundContainer = true; break; }
-      founderX += el.offsetLeft;
-      el = el.offsetParent;
-    }
+    // Desabilita transição para que o reposicionamento seja instantâneo e imperceptível
+    this.container.style.transition = 'none';
 
-    // Fallback seguro: se o loop não encontrou o container (ex: CSS não tem position:relative),
-    // usa getBoundingClientRect temporariamente resetando o transform
-    if (!foundContainer) {
-      const origTransform = this.container.style.transform;
-      this.container.style.transform = 'none';
-      const contRect = this.container.getBoundingClientRect();
-      const cardRect = founderCard.getBoundingClientRect();
-      founderX = cardRect.left - contRect.left;
-      this.container.style.transform = origTransform;
-    }
+    // Reseta o transform para o estado neutro (identidade) antes de medir posições
+    // Isso garante que getBoundingClientRect retorne as posições reais do layout DOM
+    this.container.style.transform = 'translate(0px, 0px) scale(1)';
 
-    const founderWidth = founderCard.offsetWidth;
-    const containerWidth = this.container.offsetWidth;
-    const workspaceWidth = workspace.clientWidth;
-    const workspaceHeight = workspace.clientHeight;
+    // Força um reflow síncrono — sem isso o browser pode retornar valores desatualizados
+    void this.container.offsetHeight;
 
-    // Zoom: se a árvore for mais larga que o workspace, reduz para caber
+    // Lê posições reais sem distorção de transform
+    const workspaceRect = workspace.getBoundingClientRect();
+    const containerRect = this.container.getBoundingClientRect();
+    const founderRect = founderCard.getBoundingClientRect();
+
+    // Posição do centro do card fundador dentro do container (coordenadas locais)
+    const founderCenterX = (founderRect.left - containerRect.left) + founderRect.width / 2;
+    const containerWidth = containerRect.width;
+    const workspaceWidth = workspaceRect.width;
+    const workspaceHeight = workspaceRect.height;
+
+    // Calcula zoom para a árvore caber horizontalmente no workspace
     this.zoomLevel = 1.0;
     if (containerWidth > workspaceWidth * 0.9 && containerWidth > 0) {
       this.zoomLevel = Math.max((workspaceWidth * 0.9) / containerWidth, 0.15);
     }
 
-    // Centraliza o fundador horizontalmente e posiciona próximo ao topo
-    this.translateX = (workspaceWidth / 2) - (founderX + founderWidth / 2) * this.zoomLevel;
+    // translateX tal que o centro do fundador fique no centro do workspace:
+    // workspaceWidth/2 = translateX + founderCenterX * zoomLevel
+    this.translateX = (workspaceWidth / 2) - founderCenterX * this.zoomLevel;
     this.translateY = Math.max(20, workspaceHeight * 0.06);
 
+    // Reabilita a transição CSS original antes de aplicar o transform final
+    this.container.style.transition = '';
     this.updateTransform();
   }
 
