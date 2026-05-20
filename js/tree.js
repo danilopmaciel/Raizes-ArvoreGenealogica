@@ -23,19 +23,31 @@ class TreeRenderer {
     const workspace = this.container ? this.container.closest('.tree-workspace') : null;
     if (!workspace) return;
 
-    // Zoom com a roda do mouse
+    // Zoom com a roda do mouse (centrado no cursor)
     workspace.addEventListener('wheel', (e) => {
       e.preventDefault();
+      
+      const rect = workspace.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const containerMouseX = (mouseX - this.translateX) / this.zoomLevel;
+      const containerMouseY = (mouseY - this.translateY) / this.zoomLevel;
+
       if (e.deltaY < 0) {
-        this.zoomIn();
+        this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
       } else {
-        this.zoomOut();
+        this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
       }
+
+      this.translateX = mouseX - containerMouseX * this.zoomLevel;
+      this.translateY = mouseY - containerMouseY * this.zoomLevel;
+      this.updateTransform();
     });
 
     // Pan / Dragging com o mouse
     workspace.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.tree-card') || e.target.closest('.btn')) return;
+      if (e.target.closest('.btn') || e.target.closest('.btn-control') || e.target.closest('.btn-mini')) return;
       this.isDragging = true;
       this.startX = e.clientX - this.translateX;
       this.startY = e.clientY - this.translateY;
@@ -53,15 +65,110 @@ class TreeRenderer {
       this.isDragging = false;
       if (workspace) workspace.style.cursor = 'default';
     });
+
+    // Suporte a gestos touch para dispositivos móveis (arrastar para navegar e pinça para zoom)
+    this.initialTouchDistance = null;
+    this.initialZoom = 1;
+
+    workspace.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.btn') || e.target.closest('.btn-control') || e.target.closest('.btn-mini')) return;
+      
+      if (e.touches.length === 2) {
+        this.isDragging = false;
+        this.initialTouchDistance = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        this.initialZoom = this.zoomLevel;
+        
+        // Ponto central da pinça no início
+        const touchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const touchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const rect = workspace.getBoundingClientRect();
+        this.pinchCenterX = touchX - rect.left;
+        this.pinchCenterY = touchY - rect.top;
+        this.containerPinchX = (this.pinchCenterX - this.translateX) / this.zoomLevel;
+        this.containerPinchY = (this.pinchCenterY - this.translateY) / this.zoomLevel;
+      } else if (e.touches.length === 1) {
+        this.isDragging = true;
+        this.touchStartX = e.touches[0].clientX;
+        this.touchStartY = e.touches[0].clientY;
+        this.touchStartTranslateX = this.translateX;
+        this.touchStartTranslateY = this.translateY;
+        this.touchHasMoved = false;
+      }
+    }, { passive: false });
+
+    workspace.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && this.initialTouchDistance) {
+        e.preventDefault();
+        const currentDistance = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = currentDistance / this.initialTouchDistance;
+        this.zoomLevel = Math.min(Math.max(this.initialZoom * factor, 0.15), 2.0);
+
+        // Zoom centrado no ponto da pinça
+        this.translateX = this.pinchCenterX - this.containerPinchX * this.zoomLevel;
+        this.translateY = this.pinchCenterY - this.containerPinchY * this.zoomLevel;
+        this.updateTransform();
+      } else if (e.touches.length === 1 && this.isDragging) {
+        const dx = e.touches[0].clientX - this.touchStartX;
+        const dy = e.touches[0].clientY - this.touchStartY;
+        
+        if (Math.hypot(dx, dy) > 8) {
+          this.touchHasMoved = true;
+        }
+
+        if (this.touchHasMoved) {
+          e.preventDefault();
+          this.translateX = this.touchStartTranslateX + dx;
+          this.translateY = this.touchStartTranslateY + dy;
+          this.updateTransform();
+        }
+      }
+    }, { passive: false });
+
+    workspace.addEventListener('touchend', (e) => {
+      this.isDragging = false;
+      this.initialTouchDistance = null;
+    });
   }
 
   zoomIn() {
-    this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2);
+    if (!this.container) return;
+    const workspace = this.container.closest('.tree-workspace');
+    if (workspace) {
+      const rect = workspace.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const containerCenterX = (centerX - this.translateX) / this.zoomLevel;
+      const containerCenterY = (centerY - this.translateY) / this.zoomLevel;
+      this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
+      this.translateX = centerX - containerCenterX * this.zoomLevel;
+      this.translateY = centerY - containerCenterY * this.zoomLevel;
+    } else {
+      this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
+    }
     this.updateTransform();
   }
 
   zoomOut() {
-    this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
+    if (!this.container) return;
+    const workspace = this.container.closest('.tree-workspace');
+    if (workspace) {
+      const rect = workspace.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const containerCenterX = (centerX - this.translateX) / this.zoomLevel;
+      const containerCenterY = (centerY - this.translateY) / this.zoomLevel;
+      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
+      this.translateX = centerX - containerCenterX * this.zoomLevel;
+      this.translateY = centerY - containerCenterY * this.zoomLevel;
+    } else {
+      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
+    }
     this.updateTransform();
   }
 
@@ -127,6 +234,24 @@ class TreeRenderer {
 
   updateTransform() {
     if (this.container) {
+      const workspace = this.container.closest('.tree-workspace');
+      if (workspace) {
+        const workspaceWidth = workspace.clientWidth;
+        const workspaceHeight = workspace.clientHeight;
+        const containerWidth = this.container.offsetWidth;
+        const containerHeight = this.container.offsetHeight;
+
+        const minVisible = 80; // Garante que pelo menos 80px do container fiquem na tela
+        
+        const minX = minVisible - (containerWidth * this.zoomLevel);
+        const maxX = workspaceWidth - minVisible;
+        
+        const minY = minVisible - (containerHeight * this.zoomLevel);
+        const maxY = workspaceHeight - minVisible;
+
+        this.translateX = Math.min(Math.max(this.translateX, minX), maxX);
+        this.translateY = Math.min(Math.max(this.translateY, minY), maxY);
+      }
       this.container.style.transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.zoomLevel})`;
     }
   }
@@ -324,7 +449,7 @@ class TreeRenderer {
     // Medição recursiva de largura das subárvores
     function measureNode(n) {
       if (n.children.length === 0) {
-        n.width = n.type === 'couple' ? 2.2 : 1.0;
+        n.width = n.type === 'couple' ? 2.0 : 1.0;
         return n.width;
       }
       
@@ -333,14 +458,13 @@ class TreeRenderer {
         childrenWidthSum += measureNode(child);
         if (index < n.children.length - 1) {
           const nextChild = n.children[index + 1];
-          // Se qualquer um dos filhos adjacentes tiver filhos (uma subárvore/ramo), usa espaçamento maior de ramos (0.9).
-          // Caso contrário, são apenas irmãos folhas simples, então usa espaçamento menor (0.35).
-          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35;
+          // Espaçamento horizontal ultra compacto entre os irmãos e ramos
+          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 0.5 : 0.2;
           childrenWidthSum += spacing;
         }
       });
       
-      const selfWidth = n.type === 'couple' ? 2.2 : 1.0;
+      const selfWidth = n.type === 'couple' ? 2.0 : 1.0;
       n.width = Math.max(selfWidth, childrenWidthSum);
       return n.width;
     }
@@ -350,7 +474,7 @@ class TreeRenderer {
 
     // Posicionamento recursivo top-down
     function positionNode(n, leftX) {
-      const selfWidth = n.type === 'couple' ? 2.2 : 1.0;
+      const selfWidth = n.type === 'couple' ? 2.0 : 1.0;
       
       if (n.children.length === 0) {
         n.x = leftX + (n.width - selfWidth) / 2;
@@ -362,7 +486,7 @@ class TreeRenderer {
         childrenTotalWidth += child.width;
         if (index < n.children.length - 1) {
           const nextChild = n.children[index + 1];
-          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35;
+          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 0.5 : 0.2;
           childrenTotalWidth += spacing;
         }
       });
@@ -374,7 +498,7 @@ class TreeRenderer {
         n.children.forEach((child, index) => {
           positionNode(child, childLeftX);
           const nextChild = n.children[index + 1];
-          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35) : 0;
+          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 0.5 : 0.2) : 0;
           childLeftX += child.width + spacing;
         });
       } else {
@@ -384,7 +508,7 @@ class TreeRenderer {
         n.children.forEach((child, index) => {
           positionNode(child, childLeftX);
           const nextChild = n.children[index + 1];
-          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35) : 0;
+          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 0.5 : 0.2) : 0;
           childLeftX += child.width + spacing;
         });
       }
@@ -392,7 +516,7 @@ class TreeRenderer {
 
     // Posiciona as raízes lado a lado
     let currentRootLeftX = 0;
-    const rootSpacing = 1.0;
+    const rootSpacing = 0.5;
     roots.forEach(root => {
       positionNode(root, currentRootLeftX);
       currentRootLeftX += root.width + rootSpacing;
@@ -411,7 +535,7 @@ class TreeRenderer {
     nodes.forEach(node => {
       if (node.type === 'couple') {
         xMap[node.members[0].id] = node.x;
-        xMap[node.members[1].id] = node.x + 1.2;
+        xMap[node.members[1].id] = node.x + 1.0;
       } else {
         xMap[node.members[0].id] = node.x;
       }
@@ -493,16 +617,16 @@ class TreeRenderer {
         groupDiv.appendChild(partnersDiv);
 
         // Aplica o espaçamento horizontal exato baseado na diferença de X
-        const scale = 220; // 1 unidade = 220px
-        const cardWidth = 200;
-        const coupleWidth = 424;
+        const scale = 82; // 1 unidade = 82px (super compacto)
+        const cardWidth = 76;
+        const coupleWidth = 160; // 2 cards de 76px + 8px de gap
         const targetX = node.x * scale;
 
         if (prevNode) {
           const prevWidth = prevNode.type === 'couple' ? coupleWidth : cardWidth;
           const prevEndX = prevNode.x * scale + prevWidth;
           let marginLeft = targetX - prevEndX;
-          if (marginLeft < 24) marginLeft = 24; // Espaçamento mínimo de segurança (24px)
+          if (marginLeft < 12) marginLeft = 12; // Espaçamento mínimo ultra compacto
           groupDiv.style.marginLeft = `${marginLeft}px`;
         } else {
           // Para o primeiro nó da linha, aplica a margem esquerda inicial para alinhar horizontalmente as gerações
@@ -540,25 +664,36 @@ class TreeRenderer {
 
     const containerRect = this.container.getBoundingClientRect();
 
-    const drawLine = (childId, parentId) => {
-      const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"]`);
-      const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"]`);
-      if (childCard && parentCard) {
-        const childRect = childCard.getBoundingClientRect();
-        const parentRect = parentCard.getBoundingClientRect();
+    const getOffsetPos = (el) => {
+      let x = 0;
+      let y = 0;
+      while (el && el !== this.container) {
+        x += el.offsetLeft;
+        y += el.offsetTop;
+        el = el.offsetParent;
+      }
+      return { x, y };
+    };
 
-        const childX = (childRect.left - containerRect.left) / this.zoomLevel + (childRect.width / this.zoomLevel) / 2;
-        const parentX = (parentRect.left - containerRect.left) / this.zoomLevel + (parentRect.width / this.zoomLevel) / 2;
+    const drawLine = (childId, parentId) => {
+      const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"] .member-avatar-wrapper`);
+      const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"] .member-avatar-wrapper`);
+      if (childCard && parentCard) {
+        const childPos = getOffsetPos(childCard);
+        const parentPos = getOffsetPos(parentCard);
+
+        const childX = childPos.x + childCard.offsetWidth / 2;
+        const parentX = parentPos.x + parentCard.offsetWidth / 2;
 
         let childY, parentY;
-        if (childRect.top > parentRect.bottom) {
+        if (childPos.y > parentPos.y) {
           // O filho está abaixo do pai (orientação clássica top-down)
-          childY = (childRect.top - containerRect.top) / this.zoomLevel;
-          parentY = (parentRect.bottom - containerRect.top) / this.zoomLevel;
+          childY = childPos.y;
+          parentY = parentPos.y + parentCard.offsetHeight;
         } else {
           // O filho está acima do pai (orientação bottom-up)
-          childY = (childRect.bottom - containerRect.top) / this.zoomLevel;
-          parentY = (parentRect.top - containerRect.top) / this.zoomLevel;
+          childY = childPos.y + childCard.offsetHeight;
+          parentY = parentPos.y;
         }
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -638,9 +773,9 @@ class TreeRenderer {
     let miniActionsHtml = `<button class="btn-mini btn-add-rel" title="Adicionar Parente" data-id="${member.id}">+</button>`;
 
     if (member.status === 'falecido') {
-      badgeHtml = `<span class="badge-status deceased">🕊️ In Memoriam</span>`;
+      badgeHtml = `<span class="badge-status deceased" title="In Memoriam">🕊️</span>`;
     } else if (member.status === 'pendente' || member.memberType === 'invite') {
-      badgeHtml = `<span class="badge-status pending" title="Clique para reenviar convite">⏳ Convite Pendente</span>`;
+      badgeHtml = `<span class="badge-status pending" title="Convite Pendente">⏳</span>`;
       miniActionsHtml += `<button class="btn-mini btn-resend-inv" title="Reenviar Convite" data-id="${member.id}">✉</button>`;
     }
 
