@@ -59,7 +59,7 @@ class TreeRenderer {
   }
 
   zoomOut() {
-    this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.5);
+    this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
     this.updateTransform();
   }
 
@@ -67,6 +67,43 @@ class TreeRenderer {
     this.zoomLevel = 1;
     this.translateX = 0;
     this.translateY = 0;
+    this.updateTransform();
+    setTimeout(() => this.centerOnFounder(), 50);
+  }
+
+  centerOnFounder() {
+    const workspace = this.container ? this.container.closest('.tree-workspace') : null;
+    if (!workspace) return;
+    const founderCard = this.container.querySelector('.tree-card.root-member');
+    if (!founderCard) return;
+
+    // Temporarily reset transform to get actual untransformed dimensions
+    const originalTransform = this.container.style.transform;
+    this.container.style.transform = 'none';
+
+    const workspaceRect = workspace.getBoundingClientRect();
+    const containerRect = this.container.getBoundingClientRect();
+    const founderRect = founderCard.getBoundingClientRect();
+
+    const founderX = founderRect.left - containerRect.left;
+    const founderWidth = founderRect.width;
+
+    // Restore transform
+    this.container.style.transform = originalTransform;
+
+    // Center founder card horizontally, place it near the top
+    this.translateX = (workspaceRect.width / 2) - (founderX + founderWidth / 2);
+    this.translateY = 40;
+    this.zoomLevel = 1.0;
+
+    // Auto zoom out if the tree is wider than the workspace
+    const containerWidth = containerRect.width;
+    if (containerWidth > workspaceRect.width * 0.9 && containerWidth > 0) {
+      this.zoomLevel = Math.max((workspaceRect.width * 0.9) / containerWidth, 0.15);
+      // Re-center under new zoom level
+      this.translateX = (workspaceRect.width / 2) - (founderX + founderWidth / 2) * this.zoomLevel;
+    }
+
     this.updateTransform();
   }
 
@@ -78,6 +115,7 @@ class TreeRenderer {
 
   render(family) {
     if (!this.container) return;
+    this.container.style.alignItems = 'flex-start';
     this.currentFamily = family;
     this.container.innerHTML = '';
 
@@ -516,6 +554,7 @@ class TreeRenderer {
     });
 
     this.container.appendChild(svg);
+    setTimeout(() => this.centerOnFounder(), 100);
   }
 
   createCard(member, familyRootId) {

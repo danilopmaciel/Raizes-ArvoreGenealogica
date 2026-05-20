@@ -571,18 +571,16 @@ main {
   align-items: center;
   justify-content: center;
 }
-
 .tree-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   padding: 4rem;
   min-width: max-content;
   min-height: max-content;
   transition: transform 0.2s ease;
   transform-origin: 0 0;
 }
-
 /* Tree Nodes Hierarchy Layout */
 .tree-level {
   display: flex;
