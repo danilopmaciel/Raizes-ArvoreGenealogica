@@ -4,7 +4,7 @@ import AuthManager from './auth.js';
 import StorageManager from './storage.js';
 import FamilyManager from './family.js';
 import ModalManager from './modal.js';
-import TreeRenderer from './tree.js?v=20260519_34';
+import TreeRenderer from './tree.js?v=20260519_35';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
@@ -502,6 +502,12 @@ class App {
 
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     if (btnZoomReset) btnZoomReset.addEventListener('click', () => this.treeRenderer.resetZoom());
+
+    const btnToggleOrientation = document.getElementById('btn-toggle-orientation');
+    if (btnToggleOrientation) btnToggleOrientation.addEventListener('click', () => this.treeRenderer.toggleOrientation());
+
+    const btnToggleLineStyle = document.getElementById('btn-toggle-line-style');
+    if (btnToggleLineStyle) btnToggleLineStyle.addEventListener('click', () => this.treeRenderer.toggleLineStyle());
 
     // Upload de Foto Local + Cropper.js
     const fileInput = document.getElementById('member-file-upload');

@@ -13,6 +13,8 @@ class TreeRenderer {
     this.startY = 0;
     this.translateX = 0;
     this.translateY = 0;
+    this.orientation = localStorage.getItem('tree_orientation') || 'top-down';
+    this.lineStyle = localStorage.getItem('tree_line_style') || 'curved';
 
     this.initControls();
   }
@@ -69,6 +71,22 @@ class TreeRenderer {
     this.translateY = 0;
     this.updateTransform();
     setTimeout(() => this.centerOnFounder(), 50);
+  }
+
+  toggleOrientation() {
+    this.orientation = this.orientation === 'top-down' ? 'bottom-up' : 'top-down';
+    localStorage.setItem('tree_orientation', this.orientation);
+    if (this.currentFamily) {
+      this.render(this.currentFamily);
+    }
+  }
+
+  toggleLineStyle() {
+    this.lineStyle = this.lineStyle === 'curved' ? 'orthogonal' : 'curved';
+    localStorage.setItem('tree_line_style', this.lineStyle);
+    if (this.currentFamily) {
+      this.render(this.currentFamily);
+    }
   }
 
   centerOnFounder() {
@@ -315,9 +333,9 @@ class TreeRenderer {
         childrenWidthSum += measureNode(child);
         if (index < n.children.length - 1) {
           const nextChild = n.children[index + 1];
-          // Se qualquer um dos filhos adjacentes tiver filhos (uma subárvore/ramo), usa espaçamento maior de ramos (1.5).
-          // Caso contrário, são apenas irmãos folhas simples, então usa espaçamento menor (0.4).
-          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4;
+          // Se qualquer um dos filhos adjacentes tiver filhos (uma subárvore/ramo), usa espaçamento maior de ramos (0.9).
+          // Caso contrário, são apenas irmãos folhas simples, então usa espaçamento menor (0.35).
+          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35;
           childrenWidthSum += spacing;
         }
       });
@@ -344,7 +362,7 @@ class TreeRenderer {
         childrenTotalWidth += child.width;
         if (index < n.children.length - 1) {
           const nextChild = n.children[index + 1];
-          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4;
+          const spacing = (child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35;
           childrenTotalWidth += spacing;
         }
       });
@@ -356,7 +374,7 @@ class TreeRenderer {
         n.children.forEach((child, index) => {
           positionNode(child, childLeftX);
           const nextChild = n.children[index + 1];
-          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4) : 0;
+          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35) : 0;
           childLeftX += child.width + spacing;
         });
       } else {
@@ -366,7 +384,7 @@ class TreeRenderer {
         n.children.forEach((child, index) => {
           positionNode(child, childLeftX);
           const nextChild = n.children[index + 1];
-          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 1.5 : 0.4) : 0;
+          const spacing = nextChild ? ((child.children.length > 0 || nextChild.children.length > 0) ? 0.9 : 0.35) : 0;
           childLeftX += child.width + spacing;
         });
       }
@@ -374,7 +392,7 @@ class TreeRenderer {
 
     // Posiciona as raízes lado a lado
     let currentRootLeftX = 0;
-    const rootSpacing = 2.0;
+    const rootSpacing = 1.0;
     roots.forEach(root => {
       positionNode(root, currentRootLeftX);
       currentRootLeftX += root.width + rootSpacing;
@@ -406,8 +424,10 @@ class TreeRenderer {
       }
     });
 
-    // Ordena as gerações de forma decrescente para que o topo fique com os mais novos (ex: 3, 2, 1, 0)
-    const generations = [...new Set(Object.values(generationMap))].sort((a, b) => b - a);
+    // Ordena as gerações conforme a orientação selecionada (top-down: mais velhos no topo; bottom-up: mais novos no topo)
+    const generations = [...new Set(Object.values(generationMap))].sort((a, b) => {
+      return this.orientation === 'top-down' ? a - b : b - a;
+    });
 
     generations.forEach(gen => {
       const membersInGen = family.members.filter(m => generationMap[m.id] === gen);
@@ -520,7 +540,6 @@ class TreeRenderer {
 
     const containerRect = this.container.getBoundingClientRect();
 
-    // Função auxiliar para traçar a curva Bezier entre dois cards
     const drawLine = (childId, parentId) => {
       const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"]`);
       const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"]`);
@@ -529,14 +548,32 @@ class TreeRenderer {
         const parentRect = parentCard.getBoundingClientRect();
 
         const childX = (childRect.left - containerRect.left) / this.zoomLevel + (childRect.width / this.zoomLevel) / 2;
-        const childY = (childRect.bottom - containerRect.top) / this.zoomLevel;
-
         const parentX = (parentRect.left - containerRect.left) / this.zoomLevel + (parentRect.width / this.zoomLevel) / 2;
-        const parentY = (parentRect.top - containerRect.top) / this.zoomLevel;
+
+        let childY, parentY;
+        if (childRect.top > parentRect.bottom) {
+          // O filho está abaixo do pai (orientação clássica top-down)
+          childY = (childRect.top - containerRect.top) / this.zoomLevel;
+          parentY = (parentRect.bottom - containerRect.top) / this.zoomLevel;
+        } else {
+          // O filho está acima do pai (orientação bottom-up)
+          childY = (childRect.bottom - containerRect.top) / this.zoomLevel;
+          parentY = (parentRect.top - containerRect.top) / this.zoomLevel;
+        }
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const midY = (childY + parentY) / 2;
-        path.setAttribute('d', `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`);
+
+        let pathD = '';
+        if (this.lineStyle === 'orthogonal') {
+          // Conexões ortogonais limpas e geométricas
+          pathD = `M ${parentX} ${parentY} L ${parentX} ${midY} L ${childX} ${midY} L ${childX} ${childY}`;
+        } else {
+          // Conexões curvas suaves em curva Bezier
+          pathD = `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`;
+        }
+
+        path.setAttribute('d', pathD);
         path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
         path.setAttribute('stroke-width', '3');
         path.setAttribute('fill', 'none');

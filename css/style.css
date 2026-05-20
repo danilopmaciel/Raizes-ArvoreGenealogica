@@ -565,7 +565,9 @@ main {
   position: relative;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-glass);
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(15, 23, 42, 0.45);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
   overflow: auto;
   display: flex;
   align-items: center;
