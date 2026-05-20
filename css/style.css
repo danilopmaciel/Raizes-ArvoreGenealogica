@@ -584,6 +584,7 @@ main {
   min-height: max-content;
   transition: transform 0.2s ease;
   transform-origin: 0 0;
+  position: relative; /* Necessário: torna-se offsetParent para cálculos de posição interna */
 }
 /* Tree Nodes Hierarchy Layout */
 .tree-level {

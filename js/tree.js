@@ -209,32 +209,42 @@ class TreeRenderer {
     const founderCard = this.container.querySelector('.tree-card.root-member');
     if (!founderCard) return;
 
-    // Usa offsetLeft/offsetTop acumulado — imune a CSS transform, sempre baseado no layout real
+    // Cálculo da posição do fundador relativa ao container usando offsetLeft acumulado.
+    // Requer que .tree-container tenha position: relative (para ser reconhecido como offsetParent).
     let founderX = 0;
-    let founderY = 0;
     let el = founderCard;
-    while (el && el !== this.container) {
+    let foundContainer = false;
+    while (el) {
+      if (el === this.container) { foundContainer = true; break; }
       founderX += el.offsetLeft;
-      founderY += el.offsetTop;
       el = el.offsetParent;
     }
+
+    // Fallback seguro: se o loop não encontrou o container (ex: CSS não tem position:relative),
+    // usa getBoundingClientRect temporariamente resetando o transform
+    if (!foundContainer) {
+      const origTransform = this.container.style.transform;
+      this.container.style.transform = 'none';
+      const contRect = this.container.getBoundingClientRect();
+      const cardRect = founderCard.getBoundingClientRect();
+      founderX = cardRect.left - contRect.left;
+      this.container.style.transform = origTransform;
+    }
+
     const founderWidth = founderCard.offsetWidth;
     const containerWidth = this.container.offsetWidth;
-
     const workspaceWidth = workspace.clientWidth;
     const workspaceHeight = workspace.clientHeight;
 
-    // Centraliza o card fundador horizontalmente, posiciona próximo ao topo
+    // Zoom: se a árvore for mais larga que o workspace, reduz para caber
     this.zoomLevel = 1.0;
-    this.translateY = Math.max(40, workspaceHeight * 0.08);
-
-    // Auto zoom out se a árvore for mais larga que o workspace
     if (containerWidth > workspaceWidth * 0.9 && containerWidth > 0) {
       this.zoomLevel = Math.max((workspaceWidth * 0.9) / containerWidth, 0.15);
     }
 
-    // Centraliza o fundador no zoom calculado
+    // Centraliza o fundador horizontalmente e posiciona próximo ao topo
     this.translateX = (workspaceWidth / 2) - (founderX + founderWidth / 2) * this.zoomLevel;
+    this.translateY = Math.max(20, workspaceHeight * 0.06);
 
     this.updateTransform();
   }
@@ -248,16 +258,18 @@ class TreeRenderer {
         const containerWidth = this.container.offsetWidth;
         const containerHeight = this.container.offsetHeight;
 
-        const minVisible = 80; // Garante que pelo menos 80px do container fiquem na tela
-        
-        const minX = minVisible - (containerWidth * this.zoomLevel);
-        const maxX = workspaceWidth - minVisible;
-        
-        const minY = minVisible - (containerHeight * this.zoomLevel);
-        const maxY = workspaceHeight - minVisible;
+        // Só aplica clamping se o container já tem dimensões reais
+        // (evita forçar translateX=80 durante o render inicial quando offsetWidth=0)
+        if (containerWidth > 0 && containerHeight > 0) {
+          const minVisible = 80;
+          const minX = minVisible - (containerWidth * this.zoomLevel);
+          const maxX = workspaceWidth - minVisible;
+          const minY = minVisible - (containerHeight * this.zoomLevel);
+          const maxY = workspaceHeight - minVisible;
 
-        this.translateX = Math.min(Math.max(this.translateX, minX), maxX);
-        this.translateY = Math.min(Math.max(this.translateY, minY), maxY);
+          this.translateX = Math.min(Math.max(this.translateX, minX), maxX);
+          this.translateY = Math.min(Math.max(this.translateY, minY), maxY);
+        }
       }
       this.container.style.transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.zoomLevel})`;
     }
