@@ -71,9 +71,13 @@ class TreeRenderer {
     this.initialZoom = 1;
 
     workspace.addEventListener('touchstart', (e) => {
+      // Ignora toques em botões de interface
       if (e.target.closest('.btn') || e.target.closest('.btn-control') || e.target.closest('.btn-mini')) return;
       
-      if (e.touches.length === 2) {
+      // Só inicia pan/pinch se o toque começa dentro do container da árvore
+      const touchedInContainer = e.target.closest('.tree-container') !== null;
+
+      if (e.touches.length === 2 && touchedInContainer) {
         this.isDragging = false;
         this.initialTouchDistance = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
@@ -89,13 +93,16 @@ class TreeRenderer {
         this.pinchCenterY = touchY - rect.top;
         this.containerPinchX = (this.pinchCenterX - this.translateX) / this.zoomLevel;
         this.containerPinchY = (this.pinchCenterY - this.translateY) / this.zoomLevel;
-      } else if (e.touches.length === 1) {
+        e.preventDefault();
+      } else if (e.touches.length === 1 && touchedInContainer) {
         this.isDragging = true;
         this.touchStartX = e.touches[0].clientX;
         this.touchStartY = e.touches[0].clientY;
         this.touchStartTranslateX = this.translateX;
         this.touchStartTranslateY = this.translateY;
         this.touchHasMoved = false;
+      } else {
+        this.isDragging = false;
       }
     }, { passive: false });
 
@@ -202,32 +209,32 @@ class TreeRenderer {
     const founderCard = this.container.querySelector('.tree-card.root-member');
     if (!founderCard) return;
 
-    // Temporarily reset transform to get actual untransformed dimensions
-    const originalTransform = this.container.style.transform;
-    this.container.style.transform = 'none';
-
-    const workspaceRect = workspace.getBoundingClientRect();
-    const containerRect = this.container.getBoundingClientRect();
-    const founderRect = founderCard.getBoundingClientRect();
-
-    const founderX = founderRect.left - containerRect.left;
-    const founderWidth = founderRect.width;
-
-    // Restore transform
-    this.container.style.transform = originalTransform;
-
-    // Center founder card horizontally, place it near the top
-    this.translateX = (workspaceRect.width / 2) - (founderX + founderWidth / 2);
-    this.translateY = 40;
-    this.zoomLevel = 1.0;
-
-    // Auto zoom out if the tree is wider than the workspace
-    const containerWidth = containerRect.width;
-    if (containerWidth > workspaceRect.width * 0.9 && containerWidth > 0) {
-      this.zoomLevel = Math.max((workspaceRect.width * 0.9) / containerWidth, 0.15);
-      // Re-center under new zoom level
-      this.translateX = (workspaceRect.width / 2) - (founderX + founderWidth / 2) * this.zoomLevel;
+    // Usa offsetLeft/offsetTop acumulado — imune a CSS transform, sempre baseado no layout real
+    let founderX = 0;
+    let founderY = 0;
+    let el = founderCard;
+    while (el && el !== this.container) {
+      founderX += el.offsetLeft;
+      founderY += el.offsetTop;
+      el = el.offsetParent;
     }
+    const founderWidth = founderCard.offsetWidth;
+    const containerWidth = this.container.offsetWidth;
+
+    const workspaceWidth = workspace.clientWidth;
+    const workspaceHeight = workspace.clientHeight;
+
+    // Centraliza o card fundador horizontalmente, posiciona próximo ao topo
+    this.zoomLevel = 1.0;
+    this.translateY = Math.max(40, workspaceHeight * 0.08);
+
+    // Auto zoom out se a árvore for mais larga que o workspace
+    if (containerWidth > workspaceWidth * 0.9 && containerWidth > 0) {
+      this.zoomLevel = Math.max((workspaceWidth * 0.9) / containerWidth, 0.15);
+    }
+
+    // Centraliza o fundador no zoom calculado
+    this.translateX = (workspaceWidth / 2) - (founderX + founderWidth / 2) * this.zoomLevel;
 
     this.updateTransform();
   }
