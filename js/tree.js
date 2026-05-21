@@ -301,7 +301,7 @@ class TreeRenderer {
       generationMap[partner.id] = 2;
     }
 
-    // Inicialização heurística inteligente baseada no domínio da família Bertonha Maciel
+    // Inicialização heurística inteligente baseada no domínio da família Minatel Bertonha
     family.members.forEach(m => {
       if (m.id === founder.id || (partner && m.id === partner.id)) return;
 

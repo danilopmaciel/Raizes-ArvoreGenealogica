@@ -4,7 +4,7 @@ import AuthManager from './auth.js?v=20260521_02';
 import StorageManager from './storage.js';
 import FamilyManager from './family.js';
 import ModalManager from './modal.js';
-import TreeRenderer from './tree.js?v=20260521_04';
+import TreeRenderer from './tree.js?v=20260521_05';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
@@ -222,7 +222,7 @@ class App {
         let modified = false;
         const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
         
-        // 1. Localiza os familiares da família Bertonha Maciel
+        // 1. Localiza os familiares da família Minatel Bertonha
         const danilo = this.activeFamily.members.find(m => m.id === 'mem_1779128298378' || (m.name && m.name.includes('Danilo') && m.name.includes('Maciel')));
         const bruna = this.activeFamily.members.find(m => m.id === 'mem_1779132818275_qrj1f' || (m.name && m.name.includes('Bruna') && m.name.includes('Miho')));
         const theo = this.activeFamily.members.find(m => m.id === 'mem_1779147209590_ve62w' || (m.name && m.name.includes('Theo') && m.name.includes('Ryu')));
