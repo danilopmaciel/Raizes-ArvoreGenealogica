@@ -1236,37 +1236,44 @@ main {
 /* Mobile Responsiveness Improvements */
 @media (max-width: 768px) {
   .navbar {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
   }
-  .navbar-title {
-    font-size: 1.2rem;
-  }
-  .navbar-user {
+  .navbar-brand {
     gap: 0.5rem;
   }
+  .navbar-logo {
+    width: 28px;
+    height: 28px;
+  }
+  .navbar-title {
+    font-size: 1.1rem;
+  }
+  .navbar-user {
+    gap: 0.4rem;
+  }
   .navbar-user .btn {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.8rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
   }
   #navbar-supabase-btn {
-    padding: 0.4rem 0.6rem !important;
-    font-size: 0.75rem !important;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.7rem !important;
   }
 
   .dashboard-screen {
     padding: 0.5rem 0.5rem 0;
-    height: auto;
-    min-height: calc(100dvh - 60px);
-    overflow-y: auto;
-    gap: 0.75rem;
+    height: 100%; /* force it to fit the main container */
+    max-height: 100%;
+    overflow: hidden; /* no page-level scrolling */
+    gap: 0.5rem;
     flex-direction: column;
   }
   
   .dashboard-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
     flex-shrink: 0;
   }
   
@@ -1276,7 +1283,7 @@ main {
   }
   
   .family-title {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
   }
   
   .family-code-badge {
@@ -1293,8 +1300,8 @@ main {
   }
   
   .dashboard-actions .btn {
-    padding: 0.6rem 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.5rem 0.4rem;
+    font-size: 0.75rem;
     justify-content: center;
   }
   
@@ -1320,10 +1327,10 @@ main {
     right: auto;
     width: 100%;
     justify-content: center;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem;
     border-radius: var(--radius-md);
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
     flex-shrink: 0;
   }
   
