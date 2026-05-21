@@ -4,7 +4,7 @@ import AuthManager from './auth.js';
 import StorageManager from './storage.js';
 import FamilyManager from './family.js';
 import ModalManager from './modal.js';
-import TreeRenderer from './tree.js?v=20260519_35';
+import TreeRenderer from './tree.js?v=20260521_01';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
