@@ -206,36 +206,29 @@ class TreeRenderer {
   centerOnFounder() {
     const workspace = this.container ? this.container.closest('.tree-workspace') : null;
     if (!workspace) return;
-    const founderCard = this.container.querySelector('.tree-card.root-member');
-    if (!founderCard) return;
-
+    
     const workspaceWidth  = workspace.clientWidth;
     const workspaceHeight = workspace.clientHeight;
     if (workspaceWidth === 0) return;
 
-    // Como .tree-container é position:absolute top:0 left:0, o seu offsetWidth
-    // retorna a largura real do conteúdo (não é constrangido por overflow:hidden do pai)
+    // .tree-container agora tem min-width: max-content, então seu offsetWidth
+    // é exato o tamanho da árvore inteira no layout.
     const containerWidth = this.container.offsetWidth;
     if (containerWidth === 0) return;
 
-    // Calcula zoom para caber na largura do workspace
+    // Calcula zoom para caber na largura do workspace (deixando 10% de margem)
     const targetZoom = (containerWidth > workspaceWidth * 0.9)
       ? Math.max((workspaceWidth * 0.9) / containerWidth, 0.15)
       : 1.0;
 
-    // Com position:absolute top:0 left:0 e transform translate(tx,ty) scale(s):
-    //   containerRect.left = workspaceRect.left + tx
-    //   founderRect.left   = founderLocalX * s + containerRect.left
-    //   ⇒ founderLocalX   = (founderRect.left − containerRect.left) / s
-    const curZoom = this.zoomLevel > 0.01 ? this.zoomLevel : 1.0;
-    const containerRect = this.container.getBoundingClientRect();
-    const founderRect   = founderCard.getBoundingClientRect();
+    // Em vez de centralizar no "fundador" (que pode ser assimétrico e deixar 
+    // a árvore deslocada para um lado), centralizamos no meio geométrico de toda a árvore.
+    const treeLocalCenterX = containerWidth / 2;
 
-    const founderMidViewport  = (founderRect.left + founderRect.right) / 2;
-    const founderLocalCenterX = (founderMidViewport - containerRect.left) / curZoom;
-
-    // workspace_center = translateX + founderLocalCenterX * targetZoom
-    this.translateX = (workspaceWidth / 2) - founderLocalCenterX * targetZoom;
+    // translateX = workspace_center - center_local * targetZoom
+    this.translateX = (workspaceWidth / 2) - (treeLocalCenterX * targetZoom);
+    
+    // Deixa uma margem no topo
     this.translateY = Math.max(20, workspaceHeight * 0.06);
     this.zoomLevel  = targetZoom;
 
