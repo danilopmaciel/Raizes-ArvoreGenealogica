@@ -209,42 +209,43 @@ class TreeRenderer {
     const founderCard = this.container.querySelector('.tree-card.root-member');
     if (!founderCard) return;
 
-    // Desabilita transição para que o reposicionamento seja instantâneo e imperceptível
-    this.container.style.transition = 'none';
+    // offsetWidth é sempre o tamanho real no layout (ignora CSS transform) — confiável
+    const containerWidth = this.container.offsetWidth;
+    const workspaceWidth = workspace.clientWidth;
+    const workspaceHeight = workspace.clientHeight;
 
-    // Reseta o transform para o estado neutro (identidade) antes de medir posições
-    // Isso garante que getBoundingClientRect retorne as posições reais do layout DOM
-    this.container.style.transform = 'translate(0px, 0px) scale(1)';
+    // Se as dimensões ainda não foram calculadas pelo browser, aborta
+    if (containerWidth === 0 || workspaceWidth === 0) return;
 
-    // Força um reflow síncrono — sem isso o browser pode retornar valores desatualizados
-    void this.container.offsetHeight;
+    // Calcula o zoom ideal para caber na largura do workspace
+    const targetZoom = (containerWidth > workspaceWidth * 0.9 && containerWidth > 0)
+      ? Math.max((workspaceWidth * 0.9) / containerWidth, 0.15)
+      : 1.0;
 
-    // Lê posições reais sem distorção de transform
-    const workspaceRect = workspace.getBoundingClientRect();
+    // Calcula o centro do founder em coordenadas LOCAIS (sem transform).
+    // Com transform-origin: 0 0 e o transform atual translate(tx,ty) scale(s):
+    //   containerRect.left = posição_original_do_container + tx
+    //   founderRect.left   = founderLocalX * s + containerRect.left
+    //   ⇒ founderLocalX   = (founderRect.left - containerRect.left) / s
+    const curZoom = (this.zoomLevel > 0.01) ? this.zoomLevel : 1.0;
     const containerRect = this.container.getBoundingClientRect();
-    const founderRect = founderCard.getBoundingClientRect();
+    const founderRect   = founderCard.getBoundingClientRect();
 
-    // Posição do centro do card fundador dentro do container (coordenadas locais)
-    const founderCenterX = (founderRect.left - containerRect.left) + founderRect.width / 2;
-    const containerWidth = containerRect.width;
-    const workspaceWidth = workspaceRect.width;
-    const workspaceHeight = workspaceRect.height;
+    // Centro do founder em espaço local (não escalado)
+    const founderMidViewport = (founderRect.left + founderRect.right) / 2;
+    const founderLocalCenterX = (founderMidViewport - containerRect.left) / curZoom;
 
-    // Calcula zoom para a árvore caber horizontalmente no workspace
-    this.zoomLevel = 1.0;
-    if (containerWidth > workspaceWidth * 0.9 && containerWidth > 0) {
-      this.zoomLevel = Math.max((workspaceWidth * 0.9) / containerWidth, 0.15);
-    }
-
-    // translateX tal que o centro do fundador fique no centro do workspace:
-    // workspaceWidth/2 = translateX + founderCenterX * zoomLevel
-    this.translateX = (workspaceWidth / 2) - founderCenterX * this.zoomLevel;
+    // translateX tal que o centro do founder fique exatamente no centro do workspace:
+    //   workspace_center = translateX + founderLocalCenterX * targetZoom
+    this.translateX = (workspaceWidth / 2) - founderLocalCenterX * targetZoom;
     this.translateY = Math.max(20, workspaceHeight * 0.06);
+    this.zoomLevel  = targetZoom;
 
-    // Reabilita a transição CSS original antes de aplicar o transform final
-    this.container.style.transition = '';
     this.updateTransform();
+    // Mostra o container agora que a posição está correta
+    this.container.style.opacity = '1';
   }
+
 
   updateTransform() {
     if (this.container) {
@@ -656,7 +657,9 @@ class TreeRenderer {
       this.container.appendChild(levelContainer);
     });
 
-    this.updateTransform();
+    // Esconde enquanto calcula a posição correta (evita flash no canto superior esquerdo)
+    this.container.style.opacity = '0';
+    // Não chama updateTransform() aqui — centerOnFounder fará o posicionamento correto
 
     // Desenha as conexões SVG dinâmicas após o navegador calcular o layout flexbox
     setTimeout(() => this.drawConnections(family), 100);
