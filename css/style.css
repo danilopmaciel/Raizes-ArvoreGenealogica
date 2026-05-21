@@ -570,21 +570,18 @@ main {
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1.5px, transparent 1.5px);
   background-size: 24px 24px;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   touch-action: none;
 }
 .tree-container {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   padding: 4rem;
-  min-width: max-content;
-  min-height: max-content;
   transition: transform 0.2s ease;
   transform-origin: 0 0;
-  position: relative; /* Necessário: torna-se offsetParent para cálculos de posição interna */
 }
 /* Tree Nodes Hierarchy Layout */
 .tree-level {

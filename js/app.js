@@ -1,10 +1,10 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js';
+import AuthManager from './auth.js?v=20260521_02';
 import StorageManager from './storage.js';
 import FamilyManager from './family.js';
 import ModalManager from './modal.js';
-import TreeRenderer from './tree.js?v=20260521_01';
+import TreeRenderer from './tree.js?v=20260521_02';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
