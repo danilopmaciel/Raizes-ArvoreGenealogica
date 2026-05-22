@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raízes — Árvore Genealógica Premium</title>
   <meta name="description" content="Crie, gerencie e compartilhe sua árvore genealógica de forma interativa e elegante. Conecte gerações com o Raízes.">
-  <link rel="stylesheet" href="css/style.css?v=20260521_05">
+  <link rel="stylesheet" href="css/style.css?v=20260522_01">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -366,8 +366,11 @@
           </div>
 
         </div>
-        <div class="modal-footer" style="display: flex; justify-content: space-between; width: 100%;">
-          <button type="button" id="btn-delete-member" class="btn btn-danger" style="display: none; background: #ef4444; border-color: #dc2626;" onclick="window.debugDeleteClick()">Excluir</button>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; width: 100%; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" id="btn-delete-member" class="btn btn-danger" style="display: none; background: #ef4444; border-color: #dc2626;" onclick="window.debugDeleteClick()">Excluir</button>
+            <button type="button" id="btn-invite-existing-member" class="btn btn-primary" style="display: none; background: var(--accent-blue); border-color: var(--accent-blue);">✉ Convidar Familiar</button>
+          </div>
           <div id="debug-status" style="position: fixed; bottom: 10px; right: 10px; background: #1e293b; color: #10b981; padding: 10px; border-radius: 8px; font-family: monospace; display: none; z-index: 9999; max-width: 300px;"></div>
           <div style="display: flex; gap: 0.75rem; margin-left: auto;">
             <button type="button" class="btn btn-secondary btn-close-modal">Cancelar</button>
@@ -483,6 +486,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260521_05"></script>
+  <script type="module" src="js/app.js?v=20260522_01"></script>
 </body>
 </html>

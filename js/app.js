@@ -1,10 +1,10 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260521_02';
+import AuthManager from './auth.js?v=20260522_01';
 import StorageManager from './storage.js';
 import FamilyManager from './family.js';
-import ModalManager from './modal.js';
-import TreeRenderer from './tree.js?v=20260521_05';
+import ModalManager from './modal.js?v=20260522_01';
+import TreeRenderer from './tree.js?v=20260522_01';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
@@ -688,6 +688,41 @@ class App {
       });
     }
 
+    const btnInviteExisting = document.getElementById('btn-invite-existing-member');
+    if (btnInviteExisting) {
+      btnInviteExisting.addEventListener('click', () => {
+        if (!this.editingMember || !this.activeFamily) return;
+
+        ModalManager.confirm(
+          `Deseja gerar um link de convite exclusivo para <strong>${this.editingMember.name}</strong>? O perfil passará para o status "Pendente" até que o familiar acesse e crie sua conta.`,
+          () => {
+            try {
+              this.editingMember.memberType = 'invite';
+              this.editingMember.status = 'pendente';
+
+              FamilyManager.updateMember(this.activeFamily.id, this.editingMember);
+
+              ModalManager.closeModal('modal-member');
+              this.activeFamily = StorageManager.getActiveFamily();
+              this.renderTree();
+
+              setTimeout(() => {
+                this.resendInvite(this.editingMember);
+              }, 500);
+            } catch (err) {
+              ModalManager.showToast(err.message, 'error');
+            }
+          },
+          {
+            title: 'Convidar Familiar para Perfil',
+            confirmText: 'Gerar Convite',
+            confirmBtnClass: 'btn-primary',
+            confirmBtnStyle: 'background: var(--accent-blue); border-color: var(--accent-blue); color: #ffffff; min-width: 120px;'
+          }
+        );
+      });
+    }
+
     const cardMerge = document.getElementById('conflict-card-merge');
     const cardNest = document.getElementById('conflict-card-nest');
     if (cardMerge && cardNest) {
@@ -829,6 +864,9 @@ class App {
     console.log('[DEBUG] openAddRelativeModal -> btnDeleteMember:', btnDeleteMember);
     if (btnDeleteMember) btnDeleteMember.style.display = 'none';
 
+    const btnInviteExisting = document.getElementById('btn-invite-existing-member');
+    if (btnInviteExisting) btnInviteExisting.style.display = 'none';
+
     ModalManager.openModal('modal-member');
   }
 
@@ -876,6 +914,15 @@ class App {
       } else {
         btnDeleteMember.style.display = 'inline-flex';
         console.log('[DEBUG] Mostrando botão - não é o root');
+      }
+    }
+
+    const btnInviteExisting = document.getElementById('btn-invite-existing-member');
+    if (btnInviteExisting) {
+      if (member.status !== 'falecido' && !member.linkedUserId) {
+        btnInviteExisting.style.display = 'inline-flex';
+      } else {
+        btnInviteExisting.style.display = 'none';
       }
     }
 
