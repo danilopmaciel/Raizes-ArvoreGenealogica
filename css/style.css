@@ -838,11 +838,20 @@ main {
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden; /* Evita que o card inteiro role, mantendo cabeçalho e rodapé fixos */
   box-shadow: var(--shadow-lg), var(--shadow-glow);
   display: flex;
   flex-direction: column;
   animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Garante que o formulário interno se comporte como contêiner flexível */
+.modal-card form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 @keyframes scaleIn {
@@ -884,6 +893,9 @@ main {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  overflow-y: auto; /* Apenas o corpo do modal rola se o conteúdo for grande */
+  flex: 1;
+  min-height: 0;
 }
 
 .modal-footer {
@@ -1348,7 +1360,7 @@ main {
   }
   
   .modal-card {
-    max-height: 95vh;
+    max-height: 88vh;
     border-radius: var(--radius-lg);
   }
   
@@ -1374,5 +1386,28 @@ main {
     align-items: center;
     gap: 1rem;
     text-align: center;
+  }
+
+  /* Botão "+" e ações mini sempre visíveis e maiores no smartphone para toque fácil */
+  .member-actions-mini {
+    opacity: 1 !important;
+    position: absolute !important;
+    top: -5px !important;
+    right: 2px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.35rem !important;
+    pointer-events: auto !important;
+  }
+  
+  .btn-mini {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 1.1rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4) !important;
+    border-radius: 50% !important;
   }
 }
