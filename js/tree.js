@@ -308,8 +308,8 @@ class TreeRenderer {
       const nameLower = (m.name || '').toLowerCase();
       const roleLower = (m.role || '').toLowerCase();
 
-      // Avós (Geração 0)
-      if (nameLower.includes('aparecida') || nameLower.includes('minatel') || nameLower.includes('abilio')) {
+      // Avós (Geração 0) - Evitamos incluir bisavós (como José Minatel) nesta geração heurística
+      if (nameLower.includes('aparecida') || nameLower.includes('abilio') || (nameLower.includes('minatel') && !nameLower.includes('josé') && !nameLower.includes('jose'))) {
         generationMap[m.id] = 0;
       }
       // Tios e Pais da família Bertonha (Geração 1)
@@ -685,8 +685,8 @@ class TreeRenderer {
     };
 
     const drawLine = (childId, parentId) => {
-      const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"] .member-avatar-wrapper`);
-      const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"] .member-avatar-wrapper`);
+      const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"]`);
+      const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"]`);
       if (childCard && parentCard) {
         const childPos = getOffsetPos(childCard);
         const parentPos = getOffsetPos(parentCard);
