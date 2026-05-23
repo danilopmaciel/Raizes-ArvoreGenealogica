@@ -308,17 +308,13 @@ class TreeRenderer {
       const nameLower = (m.name || '').toLowerCase();
       const roleLower = (m.role || '').toLowerCase();
 
-      // Avós (Geração 0) - Evitamos incluir bisavós (como José Minatel) nesta geração heurística
-      if (nameLower.includes('aparecida') || nameLower.includes('abilio') || (nameLower.includes('minatel') && !nameLower.includes('josé') && !nameLower.includes('jose'))) {
+      // Avós (Geração 0)
+      if (nameLower.includes('aparecida') || nameLower.includes('abilio')) {
         generationMap[m.id] = 0;
       }
       // Tios e Pais da família Bertonha (Geração 1)
       else if (nameLower.includes('bertonha') && (roleLower.includes('irmã') || roleLower.includes('irmão') || roleLower.includes('tio') || roleLower.includes('tia') || roleLower.includes('pai') || roleLower.includes('mãe'))) {
         generationMap[m.id] = 1;
-      }
-      // Irmãos do fundador (Geração 2)
-      else if ((roleLower === 'irmão' || roleLower === 'irmã') && !nameLower.includes('bertonha')) {
-        generationMap[m.id] = 2;
       }
     });
 
