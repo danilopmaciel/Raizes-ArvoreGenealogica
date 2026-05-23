@@ -793,13 +793,13 @@ class TreeRenderer {
       <div class="member-avatar-wrapper">
         <img src="${member.photo}" alt="${member.name}" class="member-avatar" onerror="this.src='${DEFAULT_SILHOUETTE}'">
         <span class="member-role-badge">${displayRole}</span>
+        <div class="member-actions-mini">
+          ${miniActionsHtml}
+        </div>
       </div>
       <div class="member-info">
         <div class="member-name" title="${member.name}">${member.name}</div>
         <div class="member-dates">${datesText}</div>
-      </div>
-      <div class="member-actions-mini">
-        ${miniActionsHtml}
       </div>
     `;
 
