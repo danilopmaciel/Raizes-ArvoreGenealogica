@@ -316,10 +316,6 @@ class TreeRenderer {
       else if (nameLower.includes('bertonha') && (roleLower.includes('irmã') || roleLower.includes('irmão') || roleLower.includes('tio') || roleLower.includes('tia') || roleLower.includes('pai') || roleLower.includes('mãe'))) {
         generationMap[m.id] = 1;
       }
-      // Pais diretos (Geração 1)
-      else if (roleLower === 'pai/mãe' || roleLower === 'mãe' || roleLower === 'pai') {
-        generationMap[m.id] = 1;
-      }
       // Irmãos do fundador (Geração 2)
       else if ((roleLower === 'irmão' || roleLower === 'irmã') && !nameLower.includes('bertonha')) {
         generationMap[m.id] = 2;
