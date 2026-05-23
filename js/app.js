@@ -290,10 +290,6 @@ class App {
 
         // 7. Corrige Aparecida (avó): mãe de Maria Lucia
         if (avo) {
-          if (avo.parentId !== null) {
-            avo.parentId = null;
-            modified = true;
-          }
           if (mae && !avo.childrenIds.includes(mae.id)) {
             avo.childrenIds.push(mae.id);
             modified = true;
