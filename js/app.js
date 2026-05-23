@@ -451,6 +451,43 @@ class App {
       });
     }
 
+    // Botões para adicionar parentes diretamente a partir do modal de edição
+    const btnModalAddChild = document.getElementById('btn-modal-add-child');
+    if (btnModalAddChild) {
+      btnModalAddChild.addEventListener('click', () => {
+        if (this.editingMember) {
+          this.openAddRelativeModal(this.editingMember, 'Filho');
+        }
+      });
+    }
+
+    const btnModalAddSpouse = document.getElementById('btn-modal-add-spouse');
+    if (btnModalAddSpouse) {
+      btnModalAddSpouse.addEventListener('click', () => {
+        if (this.editingMember) {
+          this.openAddRelativeModal(this.editingMember, 'Cônjuge');
+        }
+      });
+    }
+
+    const btnModalAddParent = document.getElementById('btn-modal-add-parent');
+    if (btnModalAddParent) {
+      btnModalAddParent.addEventListener('click', () => {
+        if (this.editingMember) {
+          this.openAddRelativeModal(this.editingMember, 'Pai');
+        }
+      });
+    }
+
+    const btnModalAddSibling = document.getElementById('btn-modal-add-sibling');
+    if (btnModalAddSibling) {
+      btnModalAddSibling.addEventListener('click', () => {
+        if (this.editingMember) {
+          this.openAddRelativeModal(this.editingMember, 'Irmão');
+        }
+      });
+    }
+
     const btnInvite = document.getElementById('btn-dashboard-invite');
     if (btnInvite) {
       btnInvite.addEventListener('click', () => {
@@ -816,7 +853,7 @@ class App {
     }
   }
 
-  openAddRelativeModal(member) {
+  openAddRelativeModal(member, defaultRelation = null) {
     this.selectedMemberForAdd = member;
     this.editingMember = null;
 
@@ -852,6 +889,9 @@ class App {
     const memberTypeSection = document.getElementById('member-type-section');
     if (memberTypeSection) memberTypeSection.style.display = 'block';
 
+    const relationsSection = document.getElementById('edit-member-add-relations-section');
+    if (relationsSection) relationsSection.style.display = 'none';
+
     const relSelect = document.getElementById('member-relationship');
     relSelect.innerHTML = `
       <option value="Filho">Filho / Filha</option>
@@ -859,6 +899,9 @@ class App {
       <option value="Pai">Pai / Mãe</option>
       <option value="Irmão">Irmão / Irmã</option>
     `;
+    if (defaultRelation) {
+      relSelect.value = defaultRelation;
+    }
 
     const btnDeleteMember = document.getElementById('btn-delete-member');
     console.log('[DEBUG] openAddRelativeModal -> btnDeleteMember:', btnDeleteMember);
@@ -892,6 +935,9 @@ class App {
 
     const cloudWarning = document.getElementById('cloud-warning-box');
     if (cloudWarning) cloudWarning.style.display = 'none';
+
+    const relationsSection = document.getElementById('edit-member-add-relations-section');
+    if (relationsSection) relationsSection.style.display = 'block';
 
     const statusSelect = document.getElementById('member-status');
     const deathGroup = document.getElementById('group-member-death');

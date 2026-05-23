@@ -74,10 +74,10 @@ class TreeRenderer {
       // Ignora toques em botões de interface
       if (e.target.closest('.btn') || e.target.closest('.btn-control') || e.target.closest('.btn-mini')) return;
       
-      // Só inicia pan/pinch se o toque começa dentro do container da árvore
-      const touchedInContainer = e.target.closest('.tree-container') !== null;
+      // Só inicia pan/pinch se o toque começa dentro do workspace da árvore
+      const touchedInWorkspace = e.target.closest('.tree-workspace') !== null;
 
-      if (e.touches.length === 2 && touchedInContainer) {
+      if (e.touches.length === 2 && touchedInWorkspace) {
         this.isDragging = false;
         this.initialTouchDistance = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
@@ -94,7 +94,7 @@ class TreeRenderer {
         this.containerPinchX = (this.pinchCenterX - this.translateX) / this.zoomLevel;
         this.containerPinchY = (this.pinchCenterY - this.translateY) / this.zoomLevel;
         e.preventDefault();
-      } else if (e.touches.length === 1 && touchedInContainer) {
+      } else if (e.touches.length === 1 && touchedInWorkspace) {
         this.isDragging = true;
         this.touchStartX = e.touches[0].clientX;
         this.touchStartY = e.touches[0].clientY;
@@ -812,21 +812,27 @@ class TreeRenderer {
     // Evento de clique no botão mini de adicionar parente
     const addBtn = card.querySelector('.btn-add-rel');
     if (addBtn) {
-      addBtn.addEventListener('click', (e) => {
+      const handleAdd = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         if (this.onAddRelativeClick) this.onAddRelativeClick(member);
-      });
+      };
+      addBtn.addEventListener('click', handleAdd);
+      addBtn.addEventListener('touchend', handleAdd);
     }
 
     // Evento de clique no botão mini de reenviar convite
     const resendBtn = card.querySelector('.btn-resend-inv');
     if (resendBtn) {
-      resendBtn.addEventListener('click', (e) => {
+      const handleResend = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         if (window.appInstance && window.appInstance.resendInvite) {
           window.appInstance.resendInvite(member);
         }
-      });
+      };
+      resendBtn.addEventListener('click', handleResend);
+      resendBtn.addEventListener('touchend', handleResend);
     }
 
     return card;
