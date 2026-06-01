@@ -45,6 +45,60 @@ class SupabaseAdapter {
     this.client = null;
   }
 
+  _memberRow(m, familyId) {
+    return {
+      id: m.id,
+      family_id: familyId,
+      name: m.name,
+      birth_date: m.birthDate || null,
+      death_date: m.deathDate || null,
+      status: m.status || 'vivo',
+      bio: m.bio || '',
+      photo: m.photo || '',
+      role: m.role || 'Parente',
+      parent_id: m.parentId || null,
+      partner_id: m.partnerId || null,
+      member_type: m.memberType || 'offline',
+      linked_user_id: m.linkedUserId || null,
+      children_ids: m.childrenIds || []
+    };
+  }
+
+  // Sincronização INCREMENTAL: grava apenas os membros alterados (e remove os excluídos).
+  async syncFamilyMembers(family, changedIds = [], deletedIds = []) {
+    if (!this.isConfigured()) return;
+
+    const familyData = {
+      id: family.id,
+      name: family.name,
+      code: family.code,
+      root_member_id: family.rootMemberId,
+      sub_families: family.subFamilies || []
+    };
+    const { error: famError } = await this.client.from('raizes_families').upsert(familyData);
+    if (famError) throw famError;
+
+    const memberById = new Map((family.members || []).map(m => [m.id, m]));
+    const rows = [...new Set(changedIds)]
+      .map(id => memberById.get(id))
+      .filter(Boolean)
+      .map(m => this._memberRow(m, family.id));
+
+    if (rows.length > 0) {
+      const { error: upError } = await this.client.from('raizes_members').upsert(rows);
+      if (upError) throw upError;
+    }
+
+    const dels = [...new Set(deletedIds)];
+    if (dels.length > 0) {
+      const { error: delError } = await this.client
+        .from('raizes_members')
+        .delete()
+        .in('id', dels);
+      if (delError) throw delError;
+    }
+  }
+
   async syncFamily(family) {
     if (!this.isConfigured()) return;
 

@@ -65,6 +65,62 @@ class FirebaseAdapter {
     return false;
   }
 
+  // Monta o documento de um membro para o Firestore
+  _memberDoc(member, familyId) {
+    return {
+      id: member.id,
+      familyId: familyId,
+      name: member.name,
+      birthDate: member.birthDate || '',
+      deathDate: member.deathDate || '',
+      status: member.status || 'vivo',
+      bio: member.bio || '',
+      photo: member.photo || '',
+      role: member.role || '',
+      parentId: member.parentId || null,
+      partnerId: member.partnerId || null,
+      childrenIds: member.childrenIds || [],
+      memberType: member.memberType || 'offline',
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+    };
+  }
+
+  // Sincronização INCREMENTAL: grava apenas os membros alterados (e remove os excluídos),
+  // em vez de reescrever a família inteira. Reduz drasticamente o uso da cota do Firestore.
+  async syncFamilyMembers(familyData, changedIds = [], deletedIds = []) {
+    if (!this.isConfigured()) return;
+
+    const batch = this.db.batch();
+
+    // Atualiza os metadados da família (1 escrita pequena)
+    const familyRef = this.db.collection('raizes_families').doc(familyData.id);
+    batch.set(familyRef, {
+      id: familyData.id,
+      name: familyData.name,
+      code: familyData.code,
+      rootMemberId: familyData.rootMemberId,
+      ownerName: familyData.ownerName || '',
+      ownerPhoto: familyData.ownerPhoto || '',
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    const memberById = new Map((familyData.members || []).map(m => [m.id, m]));
+    const uniqueChanged = [...new Set(changedIds)];
+
+    uniqueChanged.forEach(id => {
+      const member = memberById.get(id);
+      if (!member) return;
+      const memberRef = this.db.collection('raizes_members').doc(id);
+      batch.set(memberRef, this._memberDoc(member, familyData.id), { merge: true });
+    });
+
+    [...new Set(deletedIds)].forEach(id => {
+      batch.delete(this.db.collection('raizes_members').doc(id));
+    });
+
+    await batch.commit();
+  }
+
   // Sincroniza (Upsert) uma família no Firestore
   async syncFamily(familyData) {
     if (!this.isConfigured()) return;

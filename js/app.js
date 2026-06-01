@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260601_03';
-import StorageManager from './storage.js';
-import FamilyManager from './family.js';
-import ModalManager from './modal.js?v=20260601_03';
-import TreeRenderer from './tree.js?v=20260601_03';
-import supabaseAdapterInstance from './supabase.js';
-import firebaseAdapterInstance from './firebase.js';
+import AuthManager from './auth.js?v=20260601_05';
+import StorageManager from './storage.js?v=20260601_05';
+import FamilyManager from './family.js?v=20260601_05';
+import ModalManager from './modal.js?v=20260601_05';
+import TreeRenderer from './tree.js?v=20260601_05';
+import supabaseAdapterInstance from './supabase.js?v=20260601_05';
+import firebaseAdapterInstance from './firebase.js?v=20260601_05';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -352,7 +352,9 @@ class App {
         });
 
         if (modified) {
-          StorageManager.saveFamily(this.activeFamily);
+          // Higiene de dados local: salva só no dispositivo, sem sincronizar a
+          // família inteira na nuvem a cada carregamento (economiza cota do banco).
+          StorageManager.saveFamilyLocal(this.activeFamily);
         }
       }
 
@@ -361,6 +363,23 @@ class App {
   }
 
   setupEventListeners() {
+    // Avisa o usuário quando a sincronização com a nuvem falha (ex.: cota do banco
+    // esgotada), em vez de mostrar um "salvo com sucesso" enganoso. A alteração
+    // permanece salva neste dispositivo e será reenviada quando o banco voltar.
+    this._lastCloudErrToast = 0;
+    window.addEventListener('raizes-cloud-error', () => {
+      const now = Date.now();
+      if (now - this._lastCloudErrToast < 6000) return;
+      this._lastCloudErrToast = now;
+      ModalManager.showToast('Alteração salva neste dispositivo, mas a sincronização com a nuvem falhou (possível cota do banco esgotada). Ela será reenviada quando o banco voltar.', 'error');
+      const badge = document.getElementById('supabase-status-badge');
+      if (badge) {
+        badge.textContent = 'Falha de Sincronização';
+        badge.style.background = '#b91c1c';
+        badge.style.color = '#fecaca';
+      }
+    });
+
     // Botões de Login
     const btnGoogle = document.getElementById('btn-login-google');
     if (btnGoogle) {

@@ -1,7 +1,7 @@
 // Módulo de Gerenciamento de Armazenamento (LocalStorage), Dados Demo e Sincronização Supabase
 
-import supabaseAdapterInstance from './supabase.js';
-import firebaseAdapterInstance from './firebase.js';
+import supabaseAdapterInstance from './supabase.js?v=20260601_05';
+import firebaseAdapterInstance from './firebase.js?v=20260601_05';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -143,12 +143,78 @@ class StorageManager {
 
   static saveFamilies(families) {
     localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
-    if (supabaseAdapterInstance.isConfigured()) {
-      families.forEach(f => supabaseAdapterInstance.syncFamily(f));
+    families.forEach(f => this._cloudSyncFamily(f));
+  }
+
+  // --- Controle de alterações ainda não sincronizadas com a nuvem (pendências) ---
+  static _getDirty() {
+    try {
+      return JSON.parse(localStorage.getItem('raizes_dirty_families') || '[]');
+    } catch (e) {
+      return [];
     }
-    if (firebaseAdapterInstance.isConfigured()) {
-      families.forEach(f => firebaseAdapterInstance.syncFamily(f));
+  }
+
+  static _markDirty(familyId) {
+    const dirty = this._getDirty();
+    if (!dirty.includes(familyId)) {
+      dirty.push(familyId);
+      localStorage.setItem('raizes_dirty_families', JSON.stringify(dirty));
     }
+  }
+
+  static _clearDirty(familyId) {
+    const dirty = this._getDirty().filter(id => id !== familyId);
+    localStorage.setItem('raizes_dirty_families', JSON.stringify(dirty));
+  }
+
+  static _notifyCloudError(err) {
+    try {
+      window.dispatchEvent(new CustomEvent('raizes-cloud-error', {
+        detail: { message: (err && err.message) || 'desconhecido' }
+      }));
+    } catch (e) { /* ambiente sem window */ }
+  }
+
+  // Sincroniza UMA família na nuvem.
+  // - opts.changedMemberIds / opts.deletedMemberIds => escrita INCREMENTAL (só o que mudou)
+  // - sem opts => sincronização completa (usada em operações estruturais raras)
+  // Marca a família como pendente até a nuvem confirmar, para não perder a
+  // alteração local caso a gravação falhe (ex.: cota do banco esgotada).
+  static _cloudSyncFamily(family, opts = {}) {
+    const hasSupa = supabaseAdapterInstance.isConfigured();
+    const hasFire = firebaseAdapterInstance.isConfigured();
+    // Sem nuvem configurada NESTE instante (pode ser uma chamada transitória antes
+    // do Firebase terminar de configurar): apenas retorna. NÃO limpa a pendência,
+    // senão uma alteração local ainda não sincronizada seria perdida no reload.
+    if (!hasSupa && !hasFire) {
+      return;
+    }
+
+    this._markDirty(family.id);
+
+    const incremental = Array.isArray(opts.changedMemberIds) || Array.isArray(opts.deletedMemberIds);
+    const changed = opts.changedMemberIds || [];
+    const deleted = opts.deletedMemberIds || [];
+
+    const jobs = [];
+    if (hasSupa) {
+      jobs.push(incremental
+        ? supabaseAdapterInstance.syncFamilyMembers(family, changed, deleted)
+        : supabaseAdapterInstance.syncFamily(family));
+    }
+    if (hasFire) {
+      jobs.push(incremental
+        ? firebaseAdapterInstance.syncFamilyMembers(family, changed, deleted)
+        : firebaseAdapterInstance.syncFamily(family));
+    }
+
+    // Timeout para detectar travamento (cota esgotada gera backoff "infinito")
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+
+    Promise.race([Promise.all(jobs), timeout])
+      .then(() => { this._clearDirty(family.id); })
+      .catch((err) => { this._notifyCloudError(err); });
   }
 
   static getActiveFamily() {
@@ -166,25 +232,57 @@ class StorageManager {
     }
   }
 
+  // Mescla os dados vindos da nuvem com o local, PRESERVANDO as famílias que
+  // têm alterações ainda não sincronizadas (pendentes). Assim uma foto recém
+  // salva não é sobrescrita por uma versão antiga da nuvem ao recarregar.
+  static _mergeCloudWithLocal(cloudFamilies) {
+    const dirty = this._getDirty();
+    if (dirty.length === 0) return cloudFamilies;
+    const local = this.getFamilies();
+    const byId = new Map(cloudFamilies.map(f => [f.id, f]));
+    dirty.forEach(id => {
+      const localFam = local.find(f => f.id === id);
+      if (localFam) byId.set(id, localFam);
+    });
+    return Array.from(byId.values());
+  }
+
+  // Limita a espera por uma promessa para o app não travar se a nuvem ficar em
+  // backoff (cota esgotada faz as leituras nunca resolverem).
+  static _withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+    ]);
+  }
+
   static async syncFromSupabase() {
+    let cloudFamilies = null;
+
     if (supabaseAdapterInstance.isConfigured()) {
-      const families = await supabaseAdapterInstance.loadFamilies();
-      if (families && families.length > 0) {
-        localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
-        const active = this.getActiveFamily();
-        if (!active && families.length > 0) {
-          this.setActiveFamily(families[0].id);
-        }
+      try {
+        const families = await this._withTimeout(supabaseAdapterInstance.loadFamilies(), 10000);
+        if (families && families.length > 0) cloudFamilies = families;
+      } catch (err) {
+        this._notifyCloudError(err);
       }
     }
     if (firebaseAdapterInstance.isConfigured()) {
-      const families = await firebaseAdapterInstance.loadAllFamilies();
-      if (families && families.length > 0) {
-        localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
-        const active = this.getActiveFamily();
-        if (!active && families.length > 0) {
-          this.setActiveFamily(families[0].id);
-        }
+      try {
+        const families = await this._withTimeout(firebaseAdapterInstance.loadAllFamilies(), 10000);
+        if (families && families.length > 0) cloudFamilies = families;
+      } catch (err) {
+        // Nuvem indisponível (ex.: cota esgotada na leitura): mantém os dados locais
+        this._notifyCloudError(err);
+      }
+    }
+
+    if (cloudFamilies) {
+      const merged = this._mergeCloudWithLocal(cloudFamilies);
+      localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(merged));
+      const active = this.getActiveFamily();
+      if (!active && merged.length > 0) {
+        this.setActiveFamily(merged[0].id);
       }
     }
   }
@@ -235,18 +333,28 @@ class StorageManager {
     return newFamily;
   }
 
-  static saveFamily(updatedFamily) {
+  // Salva a família APENAS localmente (sem sincronizar na nuvem nem marcar pendência).
+  // Usado por rotinas de higiene de dados que rodam a cada carregamento e não devem
+  // gerar gravações na nuvem (evita queimar a cota do banco em todo reload).
+  static saveFamilyLocal(updatedFamily) {
     const families = this.getFamilies();
     const index = families.findIndex(f => f.id === updatedFamily.id);
     if (index !== -1) {
       families[index] = updatedFamily;
-      this.saveFamilies(families);
-      if (supabaseAdapterInstance.isConfigured()) {
-        supabaseAdapterInstance.syncFamily(updatedFamily);
-      }
-      if (firebaseAdapterInstance.isConfigured()) {
-        firebaseAdapterInstance.syncFamily(updatedFamily);
-      }
+      localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+    }
+  }
+
+  static saveFamily(updatedFamily, opts = {}) {
+    const families = this.getFamilies();
+    const index = families.findIndex(f => f.id === updatedFamily.id);
+    if (index !== -1) {
+      families[index] = updatedFamily;
+      // Persiste localmente (rápido) e sincroniza APENAS esta família na nuvem.
+      // Evita a sincronização dupla/de todas as famílias que antes multiplicava
+      // as gravações e estourava a cota do Firestore.
+      localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+      this._cloudSyncFamily(updatedFamily, opts);
     }
   }
 
