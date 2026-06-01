@@ -1,10 +1,10 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260522_02';
+import AuthManager from './auth.js?v=20260601_03';
 import StorageManager from './storage.js';
 import FamilyManager from './family.js';
-import ModalManager from './modal.js?v=20260522_02';
-import TreeRenderer from './tree.js?v=20260522_02';
+import ModalManager from './modal.js?v=20260601_03';
+import TreeRenderer from './tree.js?v=20260601_03';
 import supabaseAdapterInstance from './supabase.js';
 import firebaseAdapterInstance from './firebase.js';
 
@@ -59,6 +59,9 @@ class App {
   async init() {
     console.log('[DEBUG] App.init() called');
     ModalManager.init();
+
+    // Restaura o tema de fundo (claro/escuro) salvo pelo usuário
+    this.applyTheme(localStorage.getItem('raizes_theme') || 'dark');
 
     this.treeRenderer = new TreeRenderer('tree-container', 
       (member) => this.openEditMemberModal(member),
@@ -204,6 +207,22 @@ class App {
         badge.style.color = '#fef08a';
       }
     }
+  }
+
+  applyTheme(theme) {
+    const isLight = theme === 'light';
+    document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+    localStorage.setItem('raizes_theme', isLight ? 'light' : 'dark');
+    const btn = document.getElementById('btn-toggle-theme');
+    if (btn) {
+      btn.textContent = isLight ? '🌙' : '🌗';
+      btn.title = isLight ? 'Ativar Tema Escuro' : 'Ativar Tema Claro';
+    }
+  }
+
+  toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    this.applyTheme(current === 'light' ? 'dark' : 'light');
   }
 
   showScreen(screenId) {
@@ -541,6 +560,9 @@ class App {
 
     const btnToggleLineStyle = document.getElementById('btn-toggle-line-style');
     if (btnToggleLineStyle) btnToggleLineStyle.addEventListener('click', () => this.treeRenderer.toggleLineStyle());
+
+    const btnToggleTheme = document.getElementById('btn-toggle-theme');
+    if (btnToggleTheme) btnToggleTheme.addEventListener('click', () => this.toggleTheme());
 
     // Upload de Foto Local + Cropper.js
     const fileInput = document.getElementById('member-file-upload');

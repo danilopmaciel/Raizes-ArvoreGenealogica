@@ -649,7 +649,10 @@ class TreeRenderer {
 
   drawConnections(family) {
     if (!this.container) return;
-    this.container.style.position = 'relative';
+    // O container já é position:absolute (via CSS), o que o mantém fora do fluxo
+    // e serve de bloco de contenção para o SVG absoluto. Não o tornamos 'relative',
+    // pois isso o devolveria ao fluxo com a altura NÃO escalada da árvore inteira,
+    // esticando o workspace e empurrando os controles para fora da tela.
     const oldSvg = document.getElementById('tree-connections-svg');
     if (oldSvg) oldSvg.remove();
 
@@ -710,9 +713,9 @@ class TreeRenderer {
         }
 
         path.setAttribute('d', pathD);
+        path.setAttribute('fill', 'none');
         path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
         path.setAttribute('stroke-width', '3');
-        path.setAttribute('fill', 'none');
         path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
         path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
         svg.appendChild(path);
@@ -753,22 +756,6 @@ class TreeRenderer {
       datesText = `${birthStr || '?'} - ${deathStr || '?'}`;
     }
 
-    // Ajuste dinâmico de exibição do badge para Tio/Tia (irmãos da família Bertonha)
-    let displayRole = member.role;
-    if ((member.role === 'Irmão' || member.role === 'Irmã') && member.name && member.name.includes('Bertonha')) {
-      displayRole = member.role === 'Irmão' ? 'Tio' : 'Tia';
-    }
-
-    // Se o papel é "Filho" ou "Filha" mas o pai/mãe não é o fundador ou parceiro do fundador
-    if (this.currentFamily) {
-      const founder = this.currentFamily.members.find(m => m.id === familyRootId);
-      const partner = founder ? this.currentFamily.members.find(m => m.role === 'Cônjuge' || m.partnerId === founder.id || founder.partnerId === m.id) : null;
-      
-      if ((member.role === 'Filho' || member.role === 'Filha' || member.role === 'Filho(a)') && member.parentId && member.parentId !== familyRootId && (!partner || member.parentId !== partner.id)) {
-        displayRole = 'Primo/Prima';
-      }
-    }
-
     // Configuração de Badges Visuais (In Memoriam vs Convite Pendente)
     let badgeHtml = '';
     let miniActionsHtml = `<button class="btn-mini btn-add-rel" title="Adicionar Parente" data-id="${member.id}">+</button>`;
@@ -784,7 +771,6 @@ class TreeRenderer {
       ${badgeHtml}
       <div class="member-avatar-wrapper">
         <img src="${member.photo}" alt="${member.name}" class="member-avatar" onerror="this.src='${DEFAULT_SILHOUETTE}'">
-        <span class="member-role-badge">${displayRole}</span>
         <div class="member-actions-mini">
           ${miniActionsHtml}
         </div>

@@ -695,22 +695,6 @@ main {
   border: 2px solid var(--bg-primary); /* Borda escura interna de separação */
 }
 
-.member-role-badge {
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid var(--border-glass);
-  padding: 0.5px 4px;
-  border-radius: var(--radius-full);
-  font-size: 0.55rem;
-  font-weight: 500;
-  color: var(--text-main);
-  white-space: nowrap;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
 .member-info {
   text-align: center;
   width: 100%;
@@ -1460,4 +1444,47 @@ main {
     padding: 0.85rem !important;
     gap: 0.75rem !important;
   }
+}
+
+/* =====================================================================
+   TEMA CLARO (selecionável pelo botão 🌗 nos controles da árvore)
+   Sobrescreve as variáveis de cor quando data-theme="light"
+   ===================================================================== */
+:root[data-theme="light"] {
+  --bg-primary: #eef2f7;
+  --bg-secondary: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.75);
+  --bg-glass-hover: rgba(255, 255, 255, 0.95);
+  --border-glass: rgba(15, 23, 42, 0.12);
+  --border-glass-hover: rgba(15, 23, 42, 0.22);
+
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-inverse: #f8fafc;
+
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.12), 0 4px 6px -2px rgba(15, 23, 42, 0.07);
+}
+
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(241, 245, 249, 0.9) 0%, var(--bg-primary) 100%);
+}
+
+:root[data-theme="light"] .tree-workspace {
+  background: rgba(255, 255, 255, 0.55);
+  background-image: radial-gradient(rgba(15, 23, 42, 0.08) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+
+/* No tema claro as sombras pretas pesadas sobre o texto da árvore atrapalham a leitura */
+:root[data-theme="light"] .member-name,
+:root[data-theme="light"] .member-dates {
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+:root[data-theme="light"] .member-avatar {
+  border-color: #ffffff;
 }
