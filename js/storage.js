@@ -1,7 +1,7 @@
 // Módulo de Gerenciamento de Armazenamento (LocalStorage), Dados Demo e Sincronização Supabase
 
-import supabaseAdapterInstance from './supabase.js?v=20260601_05';
-import firebaseAdapterInstance from './firebase.js?v=20260601_05';
+import supabaseAdapterInstance from './supabase.js?v=20260605_01';
+import firebaseAdapterInstance from './firebase.js?v=20260605_01';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -295,7 +295,11 @@ class StorageManager {
     } else {
       families.push(DEMO_FAMILY);
     }
-    this.saveFamilies(families);
+    // Persiste tudo localmente, mas sincroniza na nuvem APENAS a família demo.
+    // Evita reescrever todas as famílias (ex.: a árvore real de 132 membros) na
+    // nuvem a cada clique em "Experimentar Demonstração", o que queimava a cota.
+    localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+    this._cloudSyncFamily(DEMO_FAMILY);
     this.setActiveFamily(DEMO_FAMILY.id);
     return DEMO_FAMILY;
   }
@@ -328,7 +332,9 @@ class StorageManager {
 
     const families = this.getFamilies();
     families.push(newFamily);
-    this.saveFamilies(families);
+    // Sincroniza na nuvem apenas a família recém-criada (não reescreve as demais).
+    localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+    this._cloudSyncFamily(newFamily);
     this.setActiveFamily(familyId);
     return newFamily;
   }

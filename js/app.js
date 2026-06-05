@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260601_05';
-import StorageManager from './storage.js?v=20260601_05';
-import FamilyManager from './family.js?v=20260601_05';
-import ModalManager from './modal.js?v=20260601_05';
-import TreeRenderer from './tree.js?v=20260601_05';
-import supabaseAdapterInstance from './supabase.js?v=20260601_05';
-import firebaseAdapterInstance from './firebase.js?v=20260601_05';
+import AuthManager from './auth.js?v=20260605_01';
+import StorageManager from './storage.js?v=20260605_01';
+import FamilyManager from './family.js?v=20260605_01';
+import ModalManager from './modal.js?v=20260605_01';
+import TreeRenderer from './tree.js?v=20260605_01';
+import supabaseAdapterInstance from './supabase.js?v=20260605_01';
+import firebaseAdapterInstance from './firebase.js?v=20260605_01';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -1012,7 +1012,72 @@ class App {
     ModalManager.openModal('modal-member');
   }
 
-  saveMember() {
+  // Converte uma foto que ainda é uma URL externa (Google Photos, OneDrive, link
+  // direto, etc.) em um Data URL base64 autocontido. Assim a imagem fica PERMANENTE
+  // no banco e não some quando o link externo expira ou passa a bloquear hotlink —
+  // causa comum de "as fotos não atualizam". Faz downscale para 300x300 webp (igual
+  // ao recorte) para manter o documento pequeno. Em caso de falha retorna null e o
+  // chamador mantém a URL original (comportamento anterior, sem regressão).
+  async resolvePhotoToDataUrl(src) {
+    if (!src || !/^https?:\/\//i.test(src)) return null; // já é data:/silhueta/vazio
+    const candidates = [
+      src, // tentativa direta (muitas URLs já permitem CORS de leitura)
+      `https://corsproxy.io/?${encodeURIComponent(src)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(src)}`
+    ];
+    for (const url of candidates) {
+      try {
+        // Timeout por tentativa: proxies CORS podem ficar lentos/fora do ar; não
+        // deixamos o salvamento travar — abortamos e tentamos o próximo.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        let resp;
+        try {
+          resp = await fetch(url, { signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!resp.ok) continue;
+        const blob = await resp.blob();
+        if (!blob.type.startsWith('image/')) continue;
+        const dataUrl = await this._blobToSquareDataUrl(blob);
+        if (dataUrl) return dataUrl;
+      } catch (e) { /* tenta o próximo proxy */ }
+    }
+    return null;
+  }
+
+  // Recebe um Blob de imagem (same-origin via proxy) e devolve um Data URL webp
+  // quadrado 300x300 (object-fit: cover). Retorna null se não conseguir processar.
+  _blobToSquareDataUrl(blob) {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const size = 300;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          const scale = Math.max(size / img.width, size / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+          resolve(canvas.toDataURL('image/webp', 0.85));
+        } catch (e) {
+          resolve(null);
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(null); };
+      img.src = objectUrl;
+    });
+  }
+
+  async saveMember() {
     if (!this.activeFamily) return;
 
     const name = document.getElementById('member-name').value.trim();
@@ -1020,7 +1085,7 @@ class App {
     const deathDate = document.getElementById('member-death').value;
     const status = document.getElementById('member-status').value;
     const bio = document.getElementById('member-bio').value.trim();
-    const photo = document.getElementById('member-photo-preview').src;
+    let photo = document.getElementById('member-photo-preview').src;
     const relationship = document.getElementById('member-relationship').value;
 
     const memberTypeEl = document.querySelector('input[name="member-type"]:checked');
@@ -1029,6 +1094,18 @@ class App {
     if (!name) {
       ModalManager.showToast('O nome é obrigatório.', 'error');
       return;
+    }
+
+    // Torna a foto permanente: se ainda for uma URL externa, baixa e converte para
+    // base64 antes de salvar, para que não dependa de um link que pode expirar.
+    if (/^https?:\/\//i.test(photo)) {
+      ModalManager.showToast('Salvando a foto de forma permanente...', 'success');
+      const dataUrl = await this.resolvePhotoToDataUrl(photo);
+      if (dataUrl) {
+        photo = dataUrl;
+      } else {
+        ModalManager.showToast('Não foi possível baixar a imagem do link; ele será salvo como referência.', 'error');
+      }
     }
 
     try {
