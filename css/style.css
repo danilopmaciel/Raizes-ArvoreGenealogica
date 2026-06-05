@@ -625,6 +625,33 @@ main {
   box-shadow: 0 0 6px rgba(236, 72, 153, 0.4);
 }
 
+/* === Modo Horizontal: gerações em colunas, da esquerda para a direita === */
+.tree-container.tree-horizontal {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.tree-container.tree-horizontal .tree-level {
+  flex-direction: column;
+  align-items: flex-start;
+  padding-bottom: 0;
+  padding-right: 4rem; /* espaço entre as gerações no eixo horizontal */
+}
+/* Casal empilhado na vertical (o eixo de "espalhamento" agora é vertical) */
+.tree-container.tree-horizontal .tree-node-partners {
+  flex-direction: column;
+  gap: 8px;
+}
+/* Conector do casal vira uma linha vertical entre os dois avatares empilhados */
+.tree-container.tree-horizontal .tree-node-partners::after {
+  top: 30px;
+  bottom: 30px;
+  left: 38px;
+  right: auto;
+  width: 3px;
+  height: auto;
+  background: linear-gradient(180deg, var(--accent-emerald), var(--accent-pink));
+}
+
 .tree-card {
   width: 76px;
   background: transparent;

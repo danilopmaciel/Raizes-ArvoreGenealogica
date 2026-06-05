@@ -15,6 +15,9 @@ class TreeRenderer {
     this.translateY = 0;
     this.orientation = localStorage.getItem('tree_orientation') || 'top-down';
     this.lineStyle = localStorage.getItem('tree_line_style') || 'curved';
+    // Eixo de crescimento da árvore: 'vertical' (gerações empilhadas de cima para
+    // baixo) ou 'horizontal' (gerações em colunas, da esquerda para a direita).
+    this.axis = localStorage.getItem('tree_axis') || 'vertical';
 
     this.initControls();
   }
@@ -203,6 +206,15 @@ class TreeRenderer {
     }
   }
 
+  // Alterna o eixo de crescimento entre vertical e horizontal.
+  toggleAxis() {
+    this.axis = this.axis === 'vertical' ? 'horizontal' : 'vertical';
+    localStorage.setItem('tree_axis', this.axis);
+    if (this.currentFamily) {
+      this.render(this.currentFamily);
+    }
+  }
+
   centerOnFounder() {
     const workspace = this.container ? this.container.closest('.tree-workspace') : null;
     if (!workspace) return;
@@ -266,6 +278,9 @@ class TreeRenderer {
   render(family) {
     if (!this.container) return;
     this.container.style.alignItems = 'flex-start';
+    // Aplica a classe de eixo para o CSS reorganizar gerações em linhas (vertical)
+    // ou colunas (horizontal).
+    this.container.classList.toggle('tree-horizontal', this.axis === 'horizontal');
     this.currentFamily = family;
     this.container.innerHTML = '';
 
@@ -615,21 +630,40 @@ class TreeRenderer {
 
         groupDiv.appendChild(partnersDiv);
 
-        // Aplica o espaçamento horizontal exato baseado na diferença de X
-        const scale = 82; // 1 unidade = 82px (super compacto)
-        const cardWidth = 76;
-        const coupleWidth = 160; // 2 cards de 76px + 8px de gap
-        const targetX = node.x * scale;
+        // Aplica o espaçamento exato baseado na diferença de posição (node.x é a
+        // coordenada no eixo transversal, em "slots" de card). No modo vertical isso
+        // vira margem à esquerda; no horizontal, margem ao topo (gerações em colunas).
+        if (this.axis === 'horizontal') {
+          const scale = 100; // 1 slot = 100px na vertical
+          const cardHeight = 92;
+          const coupleHeight = 192; // 2 cards empilhados de 92px + 8px de gap
+          const targetY = node.x * scale;
 
-        if (prevNode) {
-          const prevWidth = prevNode.type === 'couple' ? coupleWidth : cardWidth;
-          const prevEndX = prevNode.x * scale + prevWidth;
-          let marginLeft = targetX - prevEndX;
-          if (marginLeft < 12) marginLeft = 12; // Espaçamento mínimo ultra compacto
-          groupDiv.style.marginLeft = `${marginLeft}px`;
+          if (prevNode) {
+            const prevHeight = prevNode.type === 'couple' ? coupleHeight : cardHeight;
+            const prevEndY = prevNode.x * scale + prevHeight;
+            let marginTop = targetY - prevEndY;
+            if (marginTop < 16) marginTop = 16;
+            groupDiv.style.marginTop = `${marginTop}px`;
+          } else {
+            groupDiv.style.marginTop = `${targetY}px`;
+          }
         } else {
-          // Para o primeiro nó da linha, aplica a margem esquerda inicial para alinhar horizontalmente as gerações
-          groupDiv.style.marginLeft = `${targetX}px`;
+          const scale = 82; // 1 unidade = 82px (super compacto)
+          const cardWidth = 76;
+          const coupleWidth = 160; // 2 cards de 76px + 8px de gap
+          const targetX = node.x * scale;
+
+          if (prevNode) {
+            const prevWidth = prevNode.type === 'couple' ? coupleWidth : cardWidth;
+            const prevEndX = prevNode.x * scale + prevWidth;
+            let marginLeft = targetX - prevEndX;
+            if (marginLeft < 12) marginLeft = 12; // Espaçamento mínimo ultra compacto
+            groupDiv.style.marginLeft = `${marginLeft}px`;
+          } else {
+            // Para o primeiro nó da linha, aplica a margem esquerda inicial para alinhar horizontalmente as gerações
+            groupDiv.style.marginLeft = `${targetX}px`;
+          }
         }
 
         levelContainer.appendChild(groupDiv);
@@ -686,30 +720,54 @@ class TreeRenderer {
         const childPos = getOffsetPos(childCard);
         const parentPos = getOffsetPos(parentCard);
 
-        const childX = childPos.x + childCard.offsetWidth / 2;
-        const parentX = parentPos.x + parentCard.offsetWidth / 2;
-
-        let childY, parentY;
-        if (childPos.y > parentPos.y) {
-          // O filho está abaixo do pai (orientação clássica top-down)
-          childY = childPos.y;
-          parentY = parentPos.y + parentCard.offsetHeight;
-        } else {
-          // O filho está acima do pai (orientação bottom-up)
-          childY = childPos.y + childCard.offsetHeight;
-          parentY = parentPos.y;
-        }
-
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const midY = (childY + parentY) / 2;
-
         let pathD = '';
-        if (this.lineStyle === 'orthogonal') {
-          // Conexões ortogonais limpas e geométricas
-          pathD = `M ${parentX} ${parentY} L ${parentX} ${midY} L ${childX} ${midY} L ${childX} ${childY}`;
+
+        if (this.axis === 'horizontal') {
+          // Eixo horizontal: liga a borda lateral do pai à borda lateral do filho.
+          const childY = childPos.y + childCard.offsetHeight / 2;
+          const parentY = parentPos.y + parentCard.offsetHeight / 2;
+
+          let childX, parentX;
+          if (childPos.x > parentPos.x) {
+            // Filho à direita do pai (esquerda → direita)
+            childX = childPos.x;
+            parentX = parentPos.x + parentCard.offsetWidth;
+          } else {
+            // Filho à esquerda do pai (direita → esquerda)
+            childX = childPos.x + childCard.offsetWidth;
+            parentX = parentPos.x;
+          }
+
+          const midX = (childX + parentX) / 2;
+          if (this.lineStyle === 'orthogonal') {
+            pathD = `M ${parentX} ${parentY} L ${midX} ${parentY} L ${midX} ${childY} L ${childX} ${childY}`;
+          } else {
+            pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
+          }
         } else {
-          // Conexões curvas suaves em curva Bezier
-          pathD = `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`;
+          const childX = childPos.x + childCard.offsetWidth / 2;
+          const parentX = parentPos.x + parentCard.offsetWidth / 2;
+
+          let childY, parentY;
+          if (childPos.y > parentPos.y) {
+            // O filho está abaixo do pai (orientação clássica top-down)
+            childY = childPos.y;
+            parentY = parentPos.y + parentCard.offsetHeight;
+          } else {
+            // O filho está acima do pai (orientação bottom-up)
+            childY = childPos.y + childCard.offsetHeight;
+            parentY = parentPos.y;
+          }
+
+          const midY = (childY + parentY) / 2;
+          if (this.lineStyle === 'orthogonal') {
+            // Conexões ortogonais limpas e geométricas
+            pathD = `M ${parentX} ${parentY} L ${parentX} ${midY} L ${childX} ${midY} L ${childX} ${childY}`;
+          } else {
+            // Conexões curvas suaves em curva Bezier
+            pathD = `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`;
+          }
         }
 
         path.setAttribute('d', pathD);
