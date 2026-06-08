@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raízes — Árvore Genealógica Premium</title>
   <meta name="description" content="Crie, gerencie e compartilhe sua árvore genealógica de forma interativa e elegante. Conecte gerações com o Raízes.">
-  <link rel="stylesheet" href="css/style.css?v=20260605_02">
+  <link rel="stylesheet" href="css/style.css?v=20260607_02">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <link rel="icon" type="image/png" href="assets/logo.png">
 </head>
 <body>
@@ -28,6 +29,8 @@
         <span class="user-name">Usuário</span>
       </div>
       <button id="navbar-login-btn" class="btn btn-primary" onclick="document.getElementById('login-screen').classList.add('active');">Entrar</button>
+      <button id="navbar-history-btn" class="btn btn-secondary" title="Histórico de atividades da família" style="display: none;">📜 Histórico</button>
+      <button id="navbar-leave-family-btn" class="btn btn-secondary" title="Sair desta família (some apenas da sua conta)" style="display: none;">Sair desta família</button>
       <button id="navbar-logout-btn" class="btn btn-secondary" style="display: none;">Sair</button>
     </div>
   </header>
@@ -42,11 +45,6 @@
           <div class="hero-badge">✦ Plataforma Premium de Genealogia</div>
           <h1 class="hero-title">Conecte o seu passado ao <span>futuro</span></h1>
           <p class="hero-subtitle">Crie árvores genealógicas deslumbrantes, convide familiares pelo WhatsApp, adicione fotos direto do smartphone ou nuvem e preserve o legado da sua família para sempre.</p>
-          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-            <button id="btn-demo" class="btn btn-emerald" style="font-size: 1.1rem; padding: 1rem 2rem;">
-              <span>✦ Experimentar Demonstração Interativa</span>
-            </button>
-          </div>
         </div>
 
         <div class="glass-card login-card">
@@ -68,6 +66,10 @@
           <div class="divider">ou entre com seu e-mail</div>
 
           <form id="form-login-email">
+            <div class="form-group" id="group-login-name" style="display: none;">
+              <label for="login-name">Nome completo</label>
+              <input type="text" id="login-name" class="form-control" placeholder="Seu nome">
+            </div>
             <div class="form-group">
               <label for="login-email">E-mail</label>
               <input type="email" id="login-email" class="form-control" placeholder="seu@email.com" required>
@@ -77,6 +79,9 @@
               <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Entrar com E-mail</button>
+            <p style="text-align: center; margin-top: 0.85rem; font-size: 0.85rem;">
+              <a href="#" id="link-toggle-register" style="color: var(--accent-emerald); text-decoration: none;">Não tem conta? Criar conta</a>
+            </p>
           </form>
         </div>
       </div>
@@ -332,6 +337,16 @@
               </div>
             </div>
 
+            <!-- Ligação ao casal: filho biológico de ambos os pais OU de outro relacionamento -->
+            <div class="form-group" id="edit-member-couple-link-section" style="display: none; margin-top: 1rem;">
+              <label>Vínculo de Filiação</label>
+              <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; margin-top: 0.5rem; font-weight: 400;">
+                <input type="checkbox" id="member-both-parents" style="width: auto; margin-top: 0.2rem;">
+                <span>Filho(a) biológico(a) do casal <strong id="member-co-parent-name"></strong> — liga a linha aos dois pais.</span>
+              </label>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem;">Desmarque se este(a) filho(a) veio de outro relacionamento. A linha passa a ligar apenas a um dos pais, mantendo a conexão genética correta.</p>
+            </div>
+
             <div class="divider">Foto de Perfil (Smartphone ou Nuvem)</div>
 
             <div class="photo-upload-section">
@@ -474,6 +489,40 @@
     </div>
   </div>
 
+  <!-- Modal: Escolher seu card ("Qual desses é você?") -->
+  <div id="modal-choose-card" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>Qual desses é você?</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">Vincule a sua conta ao seu card na árvore. Isso só conecta você ao card — não altera o nome nem a foto.</p>
+        <div id="choose-card-list" style="max-height: 50vh; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button type="button" id="btn-choose-card-skip" class="btn btn-secondary" style="min-width: 160px; justify-content: center;">Pular por enquanto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Histórico de Atividades (só dono) -->
+  <div id="modal-history" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3>📜 Histórico de Atividades</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Quem fez o quê nesta família (mais recentes primeiro).</p>
+        <div id="history-list" style="max-height: 55vh; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button type="button" class="btn btn-emerald btn-close-modal" style="min-width: 160px; justify-content: center;">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Ajuste e Recorte de Foto (Cropper.js) -->
   <div id="modal-crop" class="modal-backdrop">
     <div class="modal-card" style="max-width: 500px;">
@@ -499,6 +548,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260605_02"></script>
+  <script type="module" src="js/app.js?v=20260607_02"></script>
 </body>
 </html>

@@ -1,13 +1,17 @@
 // Módulo de Gerenciamento de Armazenamento (LocalStorage), Dados Demo e Sincronização Supabase
 
-import supabaseAdapterInstance from './supabase.js?v=20260605_02';
-import firebaseAdapterInstance from './firebase.js?v=20260605_02';
+import supabaseAdapterInstance from './supabase.js?v=20260607_02';
+import firebaseAdapterInstance from './firebase.js?v=20260607_02';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
 const STORAGE_KEY_USER = 'raizes_current_user';
 const STORAGE_KEY_FAMILIES = 'raizes_families';
 const STORAGE_KEY_ACTIVE_FAMILY = 'raizes_active_family_id';
+// Famílias das quais o usuário escolheu "sair" nesta conta/dispositivo. Como o banco
+// é compartilhado e o app recarrega TODAS as famílias da nuvem, guardamos os IDs aqui
+// para filtrá-las da visão local sem alterar a árvore para os outros membros.
+const STORAGE_KEY_LEFT_FAMILIES = 'raizes_left_families';
 
 // Estrutura de Dados de Demonstração Rica
 const DEMO_FAMILY = {
@@ -226,9 +230,43 @@ class StorageManager {
 
   static setActiveFamily(familyId) {
     if (familyId) {
+      // Ativar/entrar numa família desfaz um "sair" anterior (a pessoa voltou a ela)
+      this.unleaveFamily(familyId);
       localStorage.setItem(STORAGE_KEY_ACTIVE_FAMILY, familyId);
     } else {
       localStorage.removeItem(STORAGE_KEY_ACTIVE_FAMILY);
+    }
+  }
+
+  // --- "Sair da família" (somente visão local; não altera a árvore dos outros) ---
+  static getLeftFamilies() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_LEFT_FAMILIES) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static leaveFamily(familyId) {
+    if (!familyId) return;
+    const left = this.getLeftFamilies();
+    if (!left.includes(familyId)) {
+      left.push(familyId);
+      localStorage.setItem(STORAGE_KEY_LEFT_FAMILIES, JSON.stringify(left));
+    }
+    // Remove da lista local e limpa a ativa se for esta. A nuvem não é tocada;
+    // o filtro em syncFromSupabase impede que ela volte no próximo carregamento.
+    const families = this.getFamilies().filter(f => f.id !== familyId);
+    localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(families));
+    if (localStorage.getItem(STORAGE_KEY_ACTIVE_FAMILY) === familyId) {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_FAMILY);
+    }
+  }
+
+  static unleaveFamily(familyId) {
+    const left = this.getLeftFamilies();
+    if (left.includes(familyId)) {
+      localStorage.setItem(STORAGE_KEY_LEFT_FAMILIES, JSON.stringify(left.filter(id => id !== familyId)));
     }
   }
 
@@ -279,10 +317,13 @@ class StorageManager {
 
     if (cloudFamilies) {
       const merged = this._mergeCloudWithLocal(cloudFamilies);
-      localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(merged));
+      // Esconde da visão local as famílias das quais o usuário saiu (sem mexer na nuvem)
+      const left = this.getLeftFamilies();
+      const visible = left.length ? merged.filter(f => !left.includes(f.id)) : merged;
+      localStorage.setItem(STORAGE_KEY_FAMILIES, JSON.stringify(visible));
       const active = this.getActiveFamily();
-      if (!active && merged.length > 0) {
-        this.setActiveFamily(merged[0].id);
+      if (!active && visible.length > 0) {
+        this.setActiveFamily(visible[0].id);
       }
     }
   }
@@ -304,7 +345,7 @@ class StorageManager {
     return DEMO_FAMILY;
   }
 
-  static createFamily(name, userName, userPhoto) {
+  static createFamily(name, userName, userPhoto, ownerUserId = null) {
     const familyId = 'fam_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const code = 'RAIZ-' + Math.random().toString(36).substr(2, 6).toUpperCase();
     const rootMemberId = 'mem_' + Date.now();
@@ -316,9 +357,14 @@ class StorageManager {
       photo: userPhoto || DEFAULT_SILHOUETTE,
       role: 'Raiz',
       parentId: null,
+      parentId2: null,
       partnerId: null,
       childrenIds: [],
-      bio: 'Fundador desta árvore genealógica.'
+      bio: 'Fundador desta árvore genealógica.',
+      // O criador já nasce vinculado ao card raiz
+      linkedUserId: ownerUserId || null,
+      memberType: ownerUserId ? 'online' : 'offline',
+      status: 'vivo'
     };
 
     const newFamily = {
@@ -326,6 +372,9 @@ class StorageManager {
       name: name,
       code: code,
       rootMemberId: rootMemberId,
+      ownerUserId: ownerUserId || null,
+      ownerName: userName || '',
+      ownerPhoto: userPhoto || '',
       members: [rootMember],
       subFamilies: []
     };
