@@ -300,6 +300,13 @@ class TreeRenderer {
           parent.childrenIds.push(m.id);
         }
       }
+      // Segundo pai/mãe (filho biológico do casal): garante o vínculo nos dois lados
+      if (m.parentId2) {
+        const coParent = family.members.find(p => p.id === m.parentId2);
+        if (coParent && !coParent.childrenIds.includes(m.id)) {
+          coParent.childrenIds.push(m.id);
+        }
+      }
     });
 
     const membersMap = new Map(family.members.map(m => [m.id, m]));
@@ -713,77 +720,112 @@ class TreeRenderer {
       return { x, y };
     };
 
+    // Desenha uma curva de filiação do cartão do filho até um "retângulo de origem"
+    // (parentRect, em coordenadas de offset). Esse retângulo pode ser o de um único
+    // pai/mãe OU o retângulo combinado de um casal — nesse caso a linha aponta para o
+    // centro entre os dois, ligando o filho ao casal (filho biológico de ambos).
+    const drawPathToRect = (childCard, parentRect) => {
+      const childPos = getOffsetPos(childCard);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      let pathD = '';
+
+      if (this.axis === 'horizontal') {
+        const childY = childPos.y + childCard.offsetHeight / 2;
+        const parentY = parentRect.y + parentRect.height / 2;
+
+        let childX, parentX;
+        if (childPos.x > parentRect.x) {
+          // Filho à direita do pai (esquerda → direita)
+          childX = childPos.x;
+          parentX = parentRect.x + parentRect.width;
+        } else {
+          // Filho à esquerda do pai (direita → esquerda)
+          childX = childPos.x + childCard.offsetWidth;
+          parentX = parentRect.x;
+        }
+
+        const midX = (childX + parentX) / 2;
+        if (this.lineStyle === 'orthogonal') {
+          pathD = `M ${parentX} ${parentY} L ${midX} ${parentY} L ${midX} ${childY} L ${childX} ${childY}`;
+        } else {
+          pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
+        }
+      } else {
+        const childX = childPos.x + childCard.offsetWidth / 2;
+        const parentX = parentRect.x + parentRect.width / 2;
+
+        let childY, parentY;
+        if (childPos.y > parentRect.y) {
+          // O filho está abaixo do pai (orientação clássica top-down)
+          childY = childPos.y;
+          parentY = parentRect.y + parentRect.height;
+        } else {
+          // O filho está acima do pai (orientação bottom-up)
+          childY = childPos.y + childCard.offsetHeight;
+          parentY = parentRect.y;
+        }
+
+        const midY = (childY + parentY) / 2;
+        if (this.lineStyle === 'orthogonal') {
+          pathD = `M ${parentX} ${parentY} L ${parentX} ${midY} L ${childX} ${midY} L ${childX} ${childY}`;
+        } else {
+          pathD = `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`;
+        }
+      }
+
+      path.setAttribute('d', pathD);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
+      path.setAttribute('stroke-width', '3');
+      path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
+      path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
+      svg.appendChild(path);
+    };
+
+    const rectOf = (card) => {
+      const pos = getOffsetPos(card);
+      return { x: pos.x, y: pos.y, width: card.offsetWidth, height: card.offsetHeight };
+    };
+
+    // Liga o filho a UM pai/mãe (conexão genética simples / desassociada)
     const drawLine = (childId, parentId) => {
       const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"]`);
       const parentCard = this.container.querySelector(`.tree-card[data-id="${parentId}"]`);
       if (childCard && parentCard) {
-        const childPos = getOffsetPos(childCard);
-        const parentPos = getOffsetPos(parentCard);
-
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        let pathD = '';
-
-        if (this.axis === 'horizontal') {
-          // Eixo horizontal: liga a borda lateral do pai à borda lateral do filho.
-          const childY = childPos.y + childCard.offsetHeight / 2;
-          const parentY = parentPos.y + parentCard.offsetHeight / 2;
-
-          let childX, parentX;
-          if (childPos.x > parentPos.x) {
-            // Filho à direita do pai (esquerda → direita)
-            childX = childPos.x;
-            parentX = parentPos.x + parentCard.offsetWidth;
-          } else {
-            // Filho à esquerda do pai (direita → esquerda)
-            childX = childPos.x + childCard.offsetWidth;
-            parentX = parentPos.x;
-          }
-
-          const midX = (childX + parentX) / 2;
-          if (this.lineStyle === 'orthogonal') {
-            pathD = `M ${parentX} ${parentY} L ${midX} ${parentY} L ${midX} ${childY} L ${childX} ${childY}`;
-          } else {
-            pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
-          }
-        } else {
-          const childX = childPos.x + childCard.offsetWidth / 2;
-          const parentX = parentPos.x + parentCard.offsetWidth / 2;
-
-          let childY, parentY;
-          if (childPos.y > parentPos.y) {
-            // O filho está abaixo do pai (orientação clássica top-down)
-            childY = childPos.y;
-            parentY = parentPos.y + parentCard.offsetHeight;
-          } else {
-            // O filho está acima do pai (orientação bottom-up)
-            childY = childPos.y + childCard.offsetHeight;
-            parentY = parentPos.y;
-          }
-
-          const midY = (childY + parentY) / 2;
-          if (this.lineStyle === 'orthogonal') {
-            // Conexões ortogonais limpas e geométricas
-            pathD = `M ${parentX} ${parentY} L ${parentX} ${midY} L ${childX} ${midY} L ${childX} ${childY}`;
-          } else {
-            // Conexões curvas suaves em curva Bezier
-            pathD = `M ${childX} ${childY} C ${childX} ${midY}, ${parentX} ${midY}, ${parentX} ${parentY}`;
-          }
-        }
-
-        path.setAttribute('d', pathD);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
-        path.setAttribute('stroke-width', '3');
-        path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
-        path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
-        svg.appendChild(path);
+        drawPathToRect(childCard, rectOf(parentCard));
       }
+    };
+
+    // Liga o filho ao CASAL: a linha aponta para o centro entre os dois cartões dos pais
+    const drawLineToCouple = (childId, parentAId, parentBId) => {
+      const childCard = this.container.querySelector(`.tree-card[data-id="${childId}"]`);
+      const cardA = this.container.querySelector(`.tree-card[data-id="${parentAId}"]`);
+      const cardB = this.container.querySelector(`.tree-card[data-id="${parentBId}"]`);
+      if (!childCard || !cardA || !cardB) return;
+      const a = rectOf(cardA);
+      const b = rectOf(cardB);
+      // Retângulo combinado que abrange os dois pais; seu centro é o ponto do casal
+      const combined = {
+        x: Math.min(a.x, b.x),
+        y: Math.min(a.y, b.y),
+        width: Math.max(a.x + a.width, b.x + b.width) - Math.min(a.x, b.x),
+        height: Math.max(a.y + a.height, b.y + b.height) - Math.min(a.y, b.y)
+      };
+      drawPathToRect(childCard, combined);
     };
 
     // Desenha conexões verticais de filiação de forma 100% dinâmica
     family.members.forEach(member => {
       if (member.parentId) {
-        drawLine(member.id, member.parentId);
+        // Filho biológico do casal: tem o segundo pai/mãe E ambos os cartões existem
+        const coParentCard = member.parentId2
+          ? this.container.querySelector(`.tree-card[data-id="${member.parentId2}"]`)
+          : null;
+        if (coParentCard) {
+          drawLineToCouple(member.id, member.parentId, member.parentId2);
+        } else {
+          drawLine(member.id, member.parentId);
+        }
       }
     });
 

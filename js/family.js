@@ -1,13 +1,13 @@
 // Módulo de Gestão de Famílias, Convites e Algoritmos de Mesclagem/Aninhamento
 
-import StorageManager from './storage.js?v=20260605_02';
+import StorageManager from './storage.js?v=20260607_02';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
 class FamilyManager {
-  static createFamily(name, userName, userPhoto) {
+  static createFamily(name, userName, userPhoto, ownerUserId = null) {
     if (!name) throw new Error('O nome da família é obrigatório.');
-    return StorageManager.createFamily(name, userName, userPhoto);
+    return StorageManager.createFamily(name, userName, userPhoto, ownerUserId);
   }
 
   static getInviteLink(familyCode, memberId = null) {
@@ -55,6 +55,7 @@ class FamilyManager {
       photo: memberData.photo || DEFAULT_SILHOUETTE,
       role: memberData.role || 'Parente',
       parentId: memberData.parentId || null,
+      parentId2: memberData.parentId2 || null,
       partnerId: memberData.partnerId || null,
       childrenIds: [],
       bio: memberData.bio || '',
@@ -70,6 +71,17 @@ class FamilyManager {
         if (!parent.childrenIds) parent.childrenIds = parent.children || [];
         if (!parent.childrenIds.includes(newMemberId)) {
           parent.childrenIds.push(newMemberId);
+        }
+      }
+    }
+
+    // Segundo pai/mãe (filho biológico do casal): registra o vínculo também no co-pai
+    if (newMember.parentId2) {
+      const coParent = family.members.find(m => m.id === newMember.parentId2);
+      if (coParent) {
+        if (!coParent.childrenIds) coParent.childrenIds = coParent.children || [];
+        if (!coParent.childrenIds.includes(newMemberId)) {
+          coParent.childrenIds.push(newMemberId);
         }
       }
     }
@@ -94,6 +106,7 @@ class FamilyManager {
     // Sincroniza só os membros tocados (o novo e os parentes cujas referências mudaram)
     const changed = [newMemberId];
     if (newMember.parentId) changed.push(newMember.parentId);
+    if (newMember.parentId2) changed.push(newMember.parentId2);
     if (newMember.partnerId) changed.push(newMember.partnerId);
     if (memberData.childIdToLink) changed.push(memberData.childIdToLink);
 
@@ -108,8 +121,35 @@ class FamilyManager {
 
     const index = family.members.findIndex(m => m.id === memberData.id);
     if (index !== -1) {
-      family.members[index] = { ...family.members[index], ...memberData };
-      StorageManager.saveFamily(family, { changedMemberIds: [memberData.id] });
+      const existing = family.members[index];
+      const touched = [memberData.id];
+
+      // Tratamento da (des)associação do segundo pai/mãe (filho do casal):
+      // mantém o childrenIds dos co-pais coerente quando o vínculo muda.
+      if (Object.prototype.hasOwnProperty.call(memberData, 'parentId2')) {
+        const oldCo = existing.parentId2 || null;
+        const newCo = memberData.parentId2 || null;
+        if (oldCo && oldCo !== newCo) {
+          const oldParent = family.members.find(m => m.id === oldCo);
+          if (oldParent && Array.isArray(oldParent.childrenIds)) {
+            oldParent.childrenIds = oldParent.childrenIds.filter(id => id !== existing.id);
+            touched.push(oldParent.id);
+          }
+        }
+        if (newCo) {
+          const newParent = family.members.find(m => m.id === newCo);
+          if (newParent) {
+            if (!newParent.childrenIds) newParent.childrenIds = [];
+            if (!newParent.childrenIds.includes(existing.id)) {
+              newParent.childrenIds.push(existing.id);
+            }
+            touched.push(newParent.id);
+          }
+        }
+      }
+
+      family.members[index] = { ...existing, ...memberData };
+      StorageManager.saveFamily(family, { changedMemberIds: touched });
     }
   }
 
@@ -127,6 +167,7 @@ class FamilyManager {
     family.members.forEach(m => {
       let changed = false;
       if (m.parentId === memberId) { m.parentId = null; changed = true; }
+      if (m.parentId2 === memberId) { m.parentId2 = null; changed = true; }
       if (m.partnerId === memberId) { m.partnerId = null; changed = true; }
       if (m.childrenIds && m.childrenIds.includes(memberId)) {
         m.childrenIds = m.childrenIds.filter(id => id !== memberId);
@@ -263,6 +304,44 @@ class FamilyManager {
 
     StorageManager.saveFamily(family, { changedMemberIds: [memberId] });
     StorageManager.setActiveFamily(family.id);
+    return family;
+  }
+
+  // Vincula a conta logada a um card EXISTENTE escolhido pela pessoa.
+  // Diferente de linkUserToMember: NÃO altera nome nem foto do card (apenas vincula).
+  static chooseCard(familyId, memberId, user) {
+    const families = StorageManager.getFamilies();
+    const family = families.find(f => f.id === familyId);
+    if (!family) throw new Error('Família não encontrada.');
+
+    const member = family.members.find(m => m.id === memberId);
+    if (!member) throw new Error('Card não encontrado.');
+    if (member.linkedUserId && member.linkedUserId !== user.id) {
+      throw new Error('Este card já está vinculado a outra conta.');
+    }
+
+    member.linkedUserId = user.id;
+    member.memberType = 'online';
+    if (!member.status) member.status = 'vivo';
+
+    const touched = [memberId];
+
+    // Se a pessoa escolheu o card raiz e a família ainda não tem dono, ela vira o dono.
+    if (family.rootMemberId === memberId && !family.ownerUserId) {
+      family.ownerUserId = user.id;
+    }
+
+    StorageManager.saveFamily(family, { changedMemberIds: touched });
+    return family;
+  }
+
+  // Define o dono da família quando ainda não há um (resolve famílias antigas).
+  static claimOwnership(familyId, userId) {
+    const families = StorageManager.getFamilies();
+    const family = families.find(f => f.id === familyId);
+    if (!family || family.ownerUserId) return null;
+    family.ownerUserId = userId;
+    StorageManager.saveFamily(family, { changedMemberIds: [] });
     return family;
   }
 }
