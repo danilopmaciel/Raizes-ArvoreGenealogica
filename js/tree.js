@@ -206,9 +206,11 @@ class TreeRenderer {
     }
   }
 
-  // Alterna o eixo de crescimento entre vertical e horizontal.
+  // Alterna o eixo de crescimento: vertical → horizontal → diagonal → vertical.
   toggleAxis() {
-    this.axis = this.axis === 'vertical' ? 'horizontal' : 'vertical';
+    const modes = ['vertical', 'horizontal', 'diagonal'];
+    const currentIndex = modes.indexOf(this.axis);
+    this.axis = modes[(currentIndex + 1) % modes.length];
     localStorage.setItem('tree_axis', this.axis);
     if (this.currentFamily) {
       this.render(this.currentFamily);
@@ -281,6 +283,7 @@ class TreeRenderer {
     // Aplica a classe de eixo para o CSS reorganizar gerações em linhas (vertical)
     // ou colunas (horizontal).
     this.container.classList.toggle('tree-horizontal', this.axis === 'horizontal');
+    this.container.classList.toggle('tree-diagonal', this.axis === 'diagonal');
     this.currentFamily = family;
     this.container.innerHTML = '';
 
@@ -574,6 +577,9 @@ class TreeRenderer {
       return this.orientation === 'top-down' ? a - b : b - a;
     });
 
+    if (this.axis === 'diagonal') {
+      this.buildDiagonalDOM(family, generationMap, xMap);
+    } else {
     generations.forEach(gen => {
       const membersInGen = family.members.filter(m => generationMap[m.id] === gen);
       if (membersInGen.length === 0) return;
@@ -679,6 +685,7 @@ class TreeRenderer {
 
       this.container.appendChild(levelContainer);
     });
+    } // fim do bloco else (layouts em níveis)
 
     // Esconde enquanto calcula a posição correta (evita flash no canto superior esquerdo)
     this.container.style.opacity = '0';
@@ -750,6 +757,19 @@ class TreeRenderer {
         } else {
           pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
         }
+      } else if (this.axis === 'diagonal') {
+        // Linhas retas diagonais — aspecto de galhos de árvore
+        const childCX = childPos.x + childCard.offsetWidth / 2;
+        const parentCX = parentRect.x + parentRect.width / 2;
+        let diagChildY, diagParentY;
+        if (childPos.y > parentRect.y) {
+          diagChildY = childPos.y;
+          diagParentY = parentRect.y + parentRect.height;
+        } else {
+          diagChildY = childPos.y + childCard.offsetHeight;
+          diagParentY = parentRect.y;
+        }
+        pathD = `M ${parentCX} ${diagParentY} L ${childCX} ${diagChildY}`;
       } else {
         const childX = childPos.x + childCard.offsetWidth / 2;
         const parentX = parentRect.x + parentRect.width / 2;
@@ -776,8 +796,10 @@ class TreeRenderer {
       path.setAttribute('d', pathD);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
-      path.setAttribute('stroke-width', '3');
-      path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
+      path.setAttribute('stroke-width', this.axis === 'diagonal' ? '2.5' : '3');
+      if (this.axis !== 'diagonal') {
+        path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
+      }
       path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
       svg.appendChild(path);
     };
@@ -831,6 +853,81 @@ class TreeRenderer {
 
     this.container.appendChild(svg);
     setTimeout(() => this.centerOnFounder(), 100);
+  }
+
+  // Constrói o layout diagonal: cada cartão é posicionado absolutamente de forma
+  // que as conexões entre pai e filho formem ângulos próximos de 45°.
+  buildDiagonalDOM(family, generationMap, xMap) {
+    const H_SCALE = 130; // pixels por unidade horizontal (define abertura dos galhos)
+    const V_SCALE = 150; // pixels por geração (espaço vertical entre níveis)
+
+    const allX   = Object.values(xMap);
+    const allGens = Object.values(generationMap);
+    const minX   = Math.min(...allX);
+    const maxX   = Math.max(...allX);
+    const minGen = Math.min(...allGens);
+    const maxGen = Math.max(...allGens);
+
+    // Canvas com posição relativa serve de âncora para os cards absolutamente posicionados
+    const canvas = document.createElement('div');
+    canvas.className = 'tree-diagonal-canvas';
+    canvas.style.position = 'relative';
+    canvas.style.width  = `${Math.ceil((maxX - minX + 2) * H_SCALE) + 160}px`;
+    canvas.style.height = `${(maxGen - minGen) * V_SCALE + 180}px`;
+
+    const renderedIds = new Set();
+
+    family.members.forEach(member => {
+      if (renderedIds.has(member.id)) return;
+
+      const gen = generationMap[member.id];
+
+      // Posição Y respeita a orientação (top-down vs bottom-up)
+      const genY = this.orientation === 'top-down'
+        ? (gen - minGen) * V_SCALE
+        : (maxGen - gen) * V_SCALE;
+
+      // Procura cônjuge na mesma geração que ainda não foi renderizado
+      const partnerMember = family.members.find(m => {
+        if (renderedIds.has(m.id) || m.id === member.id) return false;
+        const isPartner = m.id === member.partnerId ||
+          member.partnerId === m.id ||
+          (m.partnerId && m.partnerId === member.id);
+        return isPartner && generationMap[m.id] === gen;
+      });
+
+      if (partnerMember) {
+        // Casal: ordena pelo X para o card da esquerda sempre ser o primeiro
+        const members = [member, partnerMember].sort((a, b) => xMap[a.id] - xMap[b.id]);
+        const groupX  = (xMap[members[0].id] - minX) * H_SCALE;
+
+        const groupDiv = document.createElement('div');
+        groupDiv.style.position = 'absolute';
+        groupDiv.style.left = `${groupX}px`;
+        groupDiv.style.top  = `${genY}px`;
+
+        const partnersDiv = document.createElement('div');
+        partnersDiv.className = 'tree-node-partners';
+
+        members.forEach(m => {
+          partnersDiv.appendChild(this.createCard(m, family.rootMemberId));
+          renderedIds.add(m.id);
+        });
+
+        groupDiv.appendChild(partnersDiv);
+        canvas.appendChild(groupDiv);
+      } else {
+        // Membro solteiro: card posicionado diretamente no canvas
+        const card = this.createCard(member, family.rootMemberId);
+        card.style.position = 'absolute';
+        card.style.left = `${(xMap[member.id] - minX) * H_SCALE}px`;
+        card.style.top  = `${genY}px`;
+        canvas.appendChild(card);
+        renderedIds.add(member.id);
+      }
+    });
+
+    this.container.appendChild(canvas);
   }
 
   createCard(member, familyRootId) {

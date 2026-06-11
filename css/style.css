@@ -652,6 +652,32 @@ main {
   background: linear-gradient(180deg, var(--accent-emerald), var(--accent-pink));
 }
 
+/* === Modo Diagonal 45°: cartões em posição absoluta, galhos em linha reta === */
+.tree-container.tree-diagonal {
+  display: block; /* canvas filho usa position:relative; bloco é suficiente */
+}
+
+/* Canvas interno do modo diagonal */
+.tree-diagonal-canvas {
+  display: block;
+}
+
+/* No modo diagonal os cônjuges ficam lado a lado (linha horizontal) */
+.tree-container.tree-diagonal .tree-node-partners {
+  flex-direction: row;
+  gap: 8px;
+}
+
+/* Linha de conexão do casal mantém o padrão horizontal */
+.tree-container.tree-diagonal .tree-node-partners::after {
+  top: 30px;
+  left: 38px;
+  right: 38px;
+  height: 3px;
+  width: auto;
+  background: linear-gradient(90deg, var(--accent-emerald), var(--accent-pink));
+}
+
 .tree-card {
   width: 76px;
   background: transparent;
