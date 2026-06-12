@@ -911,6 +911,11 @@ class TreeRenderer {
 
     this.container.appendChild(svg);
     setTimeout(() => this.centerOnFounder(), 100);
+    // Garantia final: se o container ainda estiver invisível após 600ms, revela
+    const _container = this.container;
+    setTimeout(() => {
+      if (_container && _container.style.opacity !== '1') _container.style.opacity = '1';
+    }, 600);
   }
 
   // Constrói o layout diagonal: cada cartão é posicionado absolutamente de forma

@@ -1321,16 +1321,31 @@ main {
     padding: 0.35rem 0.6rem;
     font-size: 0.75rem;
   }
+  /* Esconde botões menos essenciais no mobile para não estourar a navbar */
   #navbar-supabase-btn {
-    padding: 0.35rem 0.5rem !important;
-    font-size: 0.7rem !important;
+    display: none !important;
+  }
+  #navbar-history-btn {
+    display: none !important;
+  }
+  /* Esconde o nome, mantém apenas o avatar */
+  .user-name {
+    display: none;
+  }
+  /* Encurta o texto do botão "Sair desta família" */
+  #navbar-leave-family-btn {
+    max-width: 90px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.72rem;
   }
 
   .dashboard-screen {
     padding: 0.5rem 0.5rem 0;
-    height: 100%; /* force it to fit the main container */
-    max-height: 100%;
-    overflow: hidden; /* no page-level scrolling */
+    height: calc(100vh - 52px); /* navbar fixa ~52px; garante que a tela caiba */
+    max-height: calc(100vh - 52px);
+    overflow: hidden;
     gap: 0.5rem;
     flex-direction: column;
   }
