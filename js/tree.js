@@ -955,8 +955,12 @@ class TreeRenderer {
   // Constrói o layout diagonal: cada cartão é posicionado absolutamente de forma
   // que as conexões entre pai e filho formem ângulos próximos de 45°.
   buildDiagonalDOM(family, generationMap, xMap) {
-    const H_SCALE = 180; // pixels por unidade horizontal — igual ao V_SCALE garante ~45°
-    const V_SCALE = 180; // pixels por geração (espaço vertical entre níveis)
+    // H_SCALE: distância horizontal por unidade de xMap.
+    // Para dois casais adjacentes (2 unidades cada), o espaço entre eles é:
+    //   2 × H_SCALE − (76+8+76) = 2 × H_SCALE − 160
+    // Com H_SCALE = 110 o gap é ≈ 60px, pouco maior que um avatar (60px de diâmetro).
+    const H_SCALE = 110;
+    const V_SCALE = 170; // espaço vertical entre gerações
 
     const allX   = Object.values(xMap);
     const allGens = Object.values(generationMap);
