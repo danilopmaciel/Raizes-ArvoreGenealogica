@@ -284,18 +284,45 @@ class TreeRenderer {
       return;
     }
 
+    // Modo diagonal: centraliza o fundador no meio do workspace em vez de
+    // espremer toda a árvore para caber na largura (o que torna tudo minúsculo).
+    if (this.axis === 'diagonal') {
+      // Zoom mínimo de 0.4 para não ficar ilegível; encaixa na largura se couber.
+      const fitZoom = (workspaceWidth * 0.88) / containerWidth;
+      const targetZoom = Math.max(0.4, Math.min(1.0, fitZoom));
+      this.zoomLevel = targetZoom;
+
+      // Centro horizontal: centraliza o canvas (= centro geométrico da árvore)
+      this.translateX = (workspaceWidth / 2) - (containerWidth / 2) * targetZoom;
+
+      // Centro vertical: encontra o card do fundador e o coloca no meio do workspace
+      const founderCard = this.container.querySelector('.tree-card.root-member');
+      if (founderCard) {
+        let top = 0, el = founderCard;
+        while (el && el !== this.container) { top += el.offsetTop; el = el.offsetParent; }
+        const founderMidY = top + founderCard.offsetHeight / 2;
+        this.translateY = Math.max(20, (workspaceHeight / 2) - founderMidY * targetZoom);
+      } else {
+        this.translateY = Math.max(20, workspaceHeight * 0.06);
+      }
+
+      this.updateTransform();
+      this.container.style.opacity = '1';
+      return;
+    }
+
     // Calcula zoom para caber na largura do workspace (deixando 10% de margem)
     const targetZoom = (containerWidth > workspaceWidth * 0.9)
       ? Math.max((workspaceWidth * 0.9) / containerWidth, 0.15)
       : 1.0;
 
-    // Em vez de centralizar no "fundador" (que pode ser assimétrico e deixar 
+    // Em vez de centralizar no "fundador" (que pode ser assimétrico e deixar
     // a árvore deslocada para um lado), centralizamos no meio geométrico de toda a árvore.
     const treeLocalCenterX = containerWidth / 2;
 
     // translateX = workspace_center - center_local * targetZoom
     this.translateX = (workspaceWidth / 2) - (treeLocalCenterX * targetZoom);
-    
+
     // Deixa uma margem no topo
     this.translateY = Math.max(20, workspaceHeight * 0.06);
     this.zoomLevel  = targetZoom;
@@ -816,7 +843,7 @@ class TreeRenderer {
           pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
         }
       } else if (this.axis === 'diagonal') {
-        // Linhas retas diagonais — aspecto de galhos de árvore
+        // Bezier suave — aspecto de galhos de árvore, como no esboço
         const childCX = childPos.x + childCard.offsetWidth / 2;
         const parentCX = parentRect.x + parentRect.width / 2;
         let diagChildY, diagParentY;
@@ -827,7 +854,12 @@ class TreeRenderer {
           diagChildY = childPos.y + childCard.offsetHeight;
           diagParentY = parentRect.y;
         }
-        pathD = `M ${parentCX} ${diagParentY} L ${childCX} ${diagChildY}`;
+        // Curva cúbica: sai verticalmente do pai e chega verticalmente no filho,
+        // criando o aspecto orgânico de galhos que se abrem.
+        const dy = diagChildY - diagParentY;
+        const cp1y = diagParentY + dy * 0.45;
+        const cp2y = diagChildY - dy * 0.45;
+        pathD = `M ${parentCX} ${diagParentY} C ${parentCX} ${cp1y}, ${childCX} ${cp2y}, ${childCX} ${diagChildY}`;
       } else {
         const childX = childPos.x + childCard.offsetWidth / 2;
         const parentX = parentRect.x + parentRect.width / 2;
@@ -854,11 +886,13 @@ class TreeRenderer {
       path.setAttribute('d', pathD);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
-      path.setAttribute('stroke-width', this.axis === 'diagonal' ? '2.5' : '3');
+      path.setAttribute('stroke-width', this.axis === 'diagonal' ? '3' : '3');
       if (this.axis !== 'diagonal') {
         path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
       }
-      path.style.filter = 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
+      path.style.filter = this.axis === 'diagonal'
+        ? 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.7))'
+        : 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
       svg.appendChild(path);
     };
 
@@ -921,8 +955,8 @@ class TreeRenderer {
   // Constrói o layout diagonal: cada cartão é posicionado absolutamente de forma
   // que as conexões entre pai e filho formem ângulos próximos de 45°.
   buildDiagonalDOM(family, generationMap, xMap) {
-    const H_SCALE = 130; // pixels por unidade horizontal (define abertura dos galhos)
-    const V_SCALE = 150; // pixels por geração (espaço vertical entre níveis)
+    const H_SCALE = 180; // pixels por unidade horizontal — igual ao V_SCALE garante ~45°
+    const V_SCALE = 180; // pixels por geração (espaço vertical entre níveis)
 
     const allX   = Object.values(xMap);
     const allGens = Object.values(generationMap);
