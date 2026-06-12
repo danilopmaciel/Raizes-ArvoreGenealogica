@@ -1,0 +1,5 @@
+# Dados pessoais da família exportados para teste local — NUNCA versionar
+family-export.json
+
+# Página de teste local do TreeRenderer (renderiza sem login)
+test-tree.html
