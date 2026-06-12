@@ -284,25 +284,36 @@ class TreeRenderer {
       return;
     }
 
-    // Modo diagonal: centraliza o fundador no meio do workspace em vez de
-    // espremer toda a árvore para caber na largura (o que torna tudo minúsculo).
+    // Modo diagonal: centraliza o fundador no centro do workspace (X e Y).
     if (this.axis === 'diagonal') {
-      // Zoom mínimo de 0.4 para não ficar ilegível; encaixa na largura se couber.
       const fitZoom = (workspaceWidth * 0.88) / containerWidth;
       const targetZoom = Math.max(0.4, Math.min(1.0, fitZoom));
       this.zoomLevel = targetZoom;
 
-      // Centro horizontal: centraliza o canvas (= centro geométrico da árvore)
-      this.translateX = (workspaceWidth / 2) - (containerWidth / 2) * targetZoom;
-
-      // Centro vertical: encontra o card do fundador e o coloca no meio do workspace
+      // Encontra o card do fundador e usa sua posição para centralizar
       const founderCard = this.container.querySelector('.tree-card.root-member');
       if (founderCard) {
-        let top = 0, el = founderCard;
-        while (el && el !== this.container) { top += el.offsetTop; el = el.offsetParent; }
-        const founderMidY = top + founderCard.offsetHeight / 2;
+        // Percorre a cadeia de offsetParent para obter a posição dentro do container
+        let left = 0, top = 0, el = founderCard;
+        while (el && el !== this.container) {
+          left += el.offsetLeft;
+          top  += el.offsetTop;
+          el    = el.offsetParent;
+        }
+        // Ajuste: se o fundador é metade de um casal, centraliza no meio do casal
+        // O casal tem aprox. 160px de largura; offset do parceiro = +80px do card fundador
+        const coupleHalfWidth = founderCard.closest('.tree-node-partners')
+          ? founderCard.closest('.tree-node-partners').offsetWidth / 2
+          : founderCard.offsetWidth / 2;
+        const founderMidX = left + coupleHalfWidth;
+        const founderMidY = top  + founderCard.offsetHeight / 2;
+
+        // Centraliza o fundador tanto horizontal quanto verticalmente
+        this.translateX = (workspaceWidth  / 2) - founderMidX * targetZoom;
         this.translateY = Math.max(20, (workspaceHeight / 2) - founderMidY * targetZoom);
       } else {
+        // Fallback: centro geométrico do canvas
+        this.translateX = (workspaceWidth  / 2) - (containerWidth  / 2) * targetZoom;
         this.translateY = Math.max(20, workspaceHeight * 0.06);
       }
 
