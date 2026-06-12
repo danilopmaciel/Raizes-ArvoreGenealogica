@@ -654,12 +654,14 @@ main {
 
 /* === Modo Diagonal 45°: cartões em posição absoluta, galhos em linha reta === */
 .tree-container.tree-diagonal {
-  display: block; /* canvas filho usa position:relative; bloco é suficiente */
+  /* Mantém display:flex — o canvas filho (position:relative, dimensões explícitas)
+     age como flex-item e o container se expande corretamente ao redor dele. */
 }
 
 /* Canvas interno do modo diagonal */
 .tree-diagonal-canvas {
   display: block;
+  flex-shrink: 0; /* não deixa o flex container encolher o canvas */
 }
 
 /* No modo diagonal os cônjuges ficam lado a lado (linha horizontal) */
@@ -1370,20 +1372,20 @@ main {
   }
   
   .tree-workspace {
-    height: 62vh;
-    min-height: 320px;
-    max-height: 62vh;
-    flex: none;
+    flex: 1;           /* workspace ocupa o espaço restante após header e controles */
+    min-height: 200px;
+    max-height: none;
+    height: auto;
     border-radius: var(--radius-md);
     padding: 0;
     /* touch-action: none herda do desktop, JS controla tudo */
   }
-  
+
   .tree-container {
     padding: 2rem;
   }
-  
-  /* Controles fixos abaixo do workspace no mobile — sempre acessíveis */
+
+  /* Controles sempre visíveis abaixo do workspace no mobile */
   .tree-controls {
     position: static;
     transform: none;
@@ -1391,19 +1393,22 @@ main {
     right: auto;
     width: 100%;
     justify-content: center;
-    padding: 0.4rem;
+    flex-wrap: wrap;      /* segunda linha em telas muito estreitas */
+    padding: 0.35rem 0.5rem;
     border-radius: var(--radius-md);
-    gap: 0.4rem;
-    margin-bottom: 0.5rem;
-    flex-shrink: 0;
+    gap: 0.3rem;
+    margin-bottom: 0.4rem;
+    flex-shrink: 0;       /* nunca encolhe — sempre visível */
   }
-  
+
   .btn-control {
-    width: 44px;
-    height: 44px;
-    font-size: 1.1rem;
-    flex: 1;
-    max-width: 60px;
+    /* Botões menores e quadrados para caber 8 numa linha em ≥ 360 px */
+    width: 36px;
+    height: 36px;
+    min-width: 32px;
+    font-size: 1rem;
+    flex: 1 1 36px;
+    max-width: 44px;
   }
   
   /* Modals on mobile */

@@ -269,8 +269,20 @@ class TreeRenderer {
 
     // .tree-container agora tem min-width: max-content, então seu offsetWidth
     // é exato o tamanho da árvore inteira no layout.
-    const containerWidth = this.container.offsetWidth;
-    if (containerWidth === 0) return;
+    let containerWidth = this.container.offsetWidth;
+
+    // Fallback para modo diagonal: se o container ainda não reporta largura (race
+    // condition de layout), tenta medir pelo canvas interno.
+    if (containerWidth === 0 && this.axis === 'diagonal') {
+      const canvas = this.container.querySelector('.tree-diagonal-canvas');
+      if (canvas) containerWidth = canvas.offsetWidth + 128; // +2×4rem de padding
+    }
+
+    // Garante que o container seja sempre revelado, mesmo sem largura mensurável.
+    if (containerWidth === 0) {
+      this.container.style.opacity = '1';
+      return;
+    }
 
     // Calcula zoom para caber na largura do workspace (deixando 10% de margem)
     const targetZoom = (containerWidth > workspaceWidth * 0.9)
