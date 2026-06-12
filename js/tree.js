@@ -284,37 +284,38 @@ class TreeRenderer {
       return;
     }
 
-    // Modo diagonal: centraliza o fundador no centro do workspace (X e Y).
+    // Modo diagonal: encaixa a ALTURA da árvore no workspace para todos os
+    // andares ficarem visíveis; centraliza no fundador horizontalmente.
     if (this.axis === 'diagonal') {
-      const fitZoom = (workspaceWidth * 0.88) / containerWidth;
-      const targetZoom = Math.max(0.4, Math.min(1.0, fitZoom));
+      const canvas = this.container.querySelector('.tree-diagonal-canvas');
+      if (!canvas) { this.container.style.opacity = '1'; return; }
+
+      const canvasW = canvas.offsetWidth  || (containerWidth  > 128 ? containerWidth  - 128 : 400);
+      const canvasH = canvas.offsetHeight || 400;
+      const totalW  = canvasW + 128; // + 2×4rem de padding (esquerda + direita)
+      const totalH  = canvasH + 128; // + 2×4rem de padding (topo + base)
+
+      // Zoom baseado em altura: garante que todos os andares caibam verticalmente
+      const fitZoomH = (workspaceHeight * 0.90) / totalH;
+      const fitZoomW = (workspaceWidth  * 0.90) / totalW;
+      // Usa o menor dos dois para caber em ambas as dimensões quando a árvore for compacta
+      const targetZoom = Math.max(0.12, Math.min(1.0, Math.min(fitZoomH, fitZoomW * 1.5)));
       this.zoomLevel = targetZoom;
 
-      // Encontra o card do fundador e usa sua posição para centralizar
+      // Vertical: margem simétrica (árvore centrada verticalmente)
+      this.translateY = Math.max(8, (workspaceHeight - totalH * targetZoom) / 2);
+
+      // Horizontal: centraliza no card do fundador (rootMember)
       const founderCard = this.container.querySelector('.tree-card.root-member');
       if (founderCard) {
-        // Percorre a cadeia de offsetParent para obter a posição dentro do container
-        let left = 0, top = 0, el = founderCard;
-        while (el && el !== this.container) {
-          left += el.offsetLeft;
-          top  += el.offsetTop;
-          el    = el.offsetParent;
-        }
-        // Ajuste: se o fundador é metade de um casal, centraliza no meio do casal
-        // O casal tem aprox. 160px de largura; offset do parceiro = +80px do card fundador
-        const coupleHalfWidth = founderCard.closest('.tree-node-partners')
-          ? founderCard.closest('.tree-node-partners').offsetWidth / 2
-          : founderCard.offsetWidth / 2;
-        const founderMidX = left + coupleHalfWidth;
-        const founderMidY = top  + founderCard.offsetHeight / 2;
-
-        // Centraliza o fundador tanto horizontal quanto verticalmente
-        this.translateX = (workspaceWidth  / 2) - founderMidX * targetZoom;
-        this.translateY = Math.max(20, (workspaceHeight / 2) - founderMidY * targetZoom);
+        let left = 0, el = founderCard;
+        while (el && el !== this.container) { left += el.offsetLeft; el = el.offsetParent; }
+        const partnersDiv = founderCard.closest('.tree-node-partners');
+        const coupleW = partnersDiv ? partnersDiv.offsetWidth : founderCard.offsetWidth;
+        const founderCenterX = left + coupleW / 2;
+        this.translateX = (workspaceWidth / 2) - founderCenterX * targetZoom;
       } else {
-        // Fallback: centro geométrico do canvas
-        this.translateX = (workspaceWidth  / 2) - (containerWidth  / 2) * targetZoom;
-        this.translateY = Math.max(20, workspaceHeight * 0.06);
+        this.translateX = (workspaceWidth - totalW * targetZoom) / 2;
       }
 
       this.updateTransform();
