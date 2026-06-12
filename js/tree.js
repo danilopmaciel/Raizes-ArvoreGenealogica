@@ -208,12 +208,15 @@ class TreeRenderer {
 
   // Alterna entre layout Vertical e Horizontal (botão ⇄).
   toggleAxis() {
-    // Sai do diagonal antes de alternar vertical/horizontal
-    if (this.axis === 'diagonal') this.axis = this._prevAxis || 'vertical';
+    // Sai do diagonal ou radial antes de alternar vertical/horizontal
+    if (this.axis === 'diagonal' || this.axis === 'radial') {
+      this.axis = this._prevAxis || 'vertical';
+    }
     this.axis = this.axis === 'vertical' ? 'horizontal' : 'vertical';
     localStorage.setItem('tree_axis', this.axis);
     this.updateAxisButton();
     this.updateDiagonalButton();
+    this.updateRadialButton();
     if (this.currentFamily) {
       this.render(this.currentFamily);
     }
@@ -232,6 +235,26 @@ class TreeRenderer {
     localStorage.setItem('tree_axis', this.axis);
     this.updateAxisButton();
     this.updateDiagonalButton();
+    this.updateRadialButton();
+    if (this.currentFamily) {
+      this.render(this.currentFamily);
+    }
+  }
+
+  // Ativa/desativa o modo Radial em Arco (botão 🌳).
+  toggleRadial() {
+    if (this.axis === 'radial') {
+      // Desativa: volta ao modo anterior
+      this.axis = this._prevAxis || 'vertical';
+    } else {
+      // Ativa: guarda o modo atual para restaurar depois
+      this._prevAxis = this.axis;
+      this.axis = 'radial';
+    }
+    localStorage.setItem('tree_axis', this.axis);
+    this.updateAxisButton();
+    this.updateDiagonalButton();
+    this.updateRadialButton();
     if (this.currentFamily) {
       this.render(this.currentFamily);
     }
@@ -259,6 +282,17 @@ class TreeRenderer {
       : 'Ativar Visualização Diagonal 45°';
   }
 
+  // Atualiza o botão 🌳 (Arco), acendendo-o quando ativo.
+  updateRadialButton() {
+    const btn = document.getElementById('btn-toggle-radial');
+    if (!btn) return;
+    const isActive = this.axis === 'radial';
+    btn.classList.toggle('active', isActive);
+    btn.title = isActive
+      ? 'Visualização em Arco ativa — clique para desativar'
+      : 'Ativar Visualização em Arco (Arredondada)';
+  }
+
   centerOnFounder() {
     const workspace = this.container ? this.container.closest('.tree-workspace') : null;
     if (!workspace) return;
@@ -271,10 +305,11 @@ class TreeRenderer {
     // é exato o tamanho da árvore inteira no layout.
     let containerWidth = this.container.offsetWidth;
 
-    // Fallback para modo diagonal: se o container ainda não reporta largura (race
+    // Fallback para modo diagonal/radial: se o container ainda não reporta largura (race
     // condition de layout), tenta medir pelo canvas interno.
-    if (containerWidth === 0 && this.axis === 'diagonal') {
-      const canvas = this.container.querySelector('.tree-diagonal-canvas');
+    const isAbs = this.axis === 'diagonal' || this.axis === 'radial';
+    if (containerWidth === 0 && isAbs) {
+      const canvas = this.container.querySelector('.tree-diagonal-canvas') || this.container.querySelector('.tree-radial-canvas');
       if (canvas) containerWidth = canvas.offsetWidth + 128; // +2×4rem de padding
     }
 
@@ -284,10 +319,10 @@ class TreeRenderer {
       return;
     }
 
-    // Modo diagonal: encaixa a ALTURA da árvore no workspace para todos os
+    // Modo diagonal/radial: encaixa a ALTURA da árvore no workspace para todos os
     // andares ficarem visíveis; centraliza no fundador horizontalmente.
-    if (this.axis === 'diagonal') {
-      const canvas = this.container.querySelector('.tree-diagonal-canvas');
+    if (isAbs) {
+      const canvas = this.container.querySelector('.tree-diagonal-canvas') || this.container.querySelector('.tree-radial-canvas');
       if (!canvas) { this.container.style.opacity = '1'; return; }
 
       const canvasW = canvas.offsetWidth  || (containerWidth  > 128 ? containerWidth  - 128 : 400);
@@ -373,10 +408,15 @@ class TreeRenderer {
   render(family) {
     if (!this.container) return;
     this.container.style.alignItems = 'flex-start';
+    this.container.style.padding = '';
+    this.container.style.width = '';
+    this.container.style.height = '';
+    
     // Aplica a classe de eixo para o CSS reorganizar gerações em linhas (vertical)
     // ou colunas (horizontal).
     this.container.classList.toggle('tree-horizontal', this.axis === 'horizontal');
     this.container.classList.toggle('tree-diagonal', this.axis === 'diagonal');
+    this.container.classList.toggle('tree-radial', this.axis === 'radial');
     this.currentFamily = family;
     this.container.innerHTML = '';
 
@@ -672,6 +712,8 @@ class TreeRenderer {
 
     if (this.axis === 'diagonal') {
       this.buildDiagonalDOM(family, generationMap, xMap);
+    } else if (this.axis === 'radial') {
+      this.buildRadialDOM(family);
     } else {
     generations.forEach(gen => {
       const membersInGen = family.members.filter(m => generationMap[m.id] === gen);
@@ -783,6 +825,7 @@ class TreeRenderer {
     // Sincroniza os botões com o modo atual (importante na primeira carga)
     this.updateAxisButton();
     this.updateDiagonalButton();
+    this.updateRadialButton();
 
     // Esconde enquanto calcula a posição correta (evita flash no canto superior esquerdo)
     this.container.style.opacity = '0';
@@ -854,24 +897,24 @@ class TreeRenderer {
         } else {
           pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
         }
-      } else if (this.axis === 'diagonal') {
+      } else if (this.axis === 'diagonal' || this.axis === 'radial') {
         // Bezier suave — aspecto de galhos de árvore, como no esboço
         const childCX = childPos.x + childCard.offsetWidth / 2;
         const parentCX = parentRect.x + parentRect.width / 2;
-        let diagChildY, diagParentY;
+        let organicChildY, organicParentY;
         if (childPos.y > parentRect.y) {
-          diagChildY = childPos.y;
-          diagParentY = parentRect.y + parentRect.height;
+          organicChildY = childPos.y;
+          organicParentY = parentRect.y + parentRect.height;
         } else {
-          diagChildY = childPos.y + childCard.offsetHeight;
-          diagParentY = parentRect.y;
+          organicChildY = childPos.y + childCard.offsetHeight;
+          organicParentY = parentRect.y;
         }
         // Curva cúbica: sai verticalmente do pai e chega verticalmente no filho,
         // criando o aspecto orgânico de galhos que se abrem.
-        const dy = diagChildY - diagParentY;
-        const cp1y = diagParentY + dy * 0.45;
-        const cp2y = diagChildY - dy * 0.45;
-        pathD = `M ${parentCX} ${diagParentY} C ${parentCX} ${cp1y}, ${childCX} ${cp2y}, ${childCX} ${diagChildY}`;
+        const dy = organicChildY - organicParentY;
+        const cp1y = organicParentY + dy * 0.45;
+        const cp2y = organicChildY - dy * 0.45;
+        pathD = `M ${parentCX} ${organicParentY} C ${parentCX} ${cp1y}, ${childCX} ${cp2y}, ${childCX} ${organicChildY}`;
       } else {
         const childX = childPos.x + childCard.offsetWidth / 2;
         const parentX = parentRect.x + parentRect.width / 2;
@@ -898,11 +941,13 @@ class TreeRenderer {
       path.setAttribute('d', pathD);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', '#10b981'); // Verde Esmeralda brilhante
-      path.setAttribute('stroke-width', this.axis === 'diagonal' ? '3' : '3');
-      if (this.axis !== 'diagonal') {
+      path.setAttribute('stroke-width', '3');
+      
+      const isOrganic = this.axis === 'diagonal' || this.axis === 'radial';
+      if (!isOrganic) {
         path.setAttribute('stroke-dasharray', '6,4'); // Tracejado elegante
       }
-      path.style.filter = this.axis === 'diagonal'
+      path.style.filter = isOrganic
         ? 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.7))'
         : 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.5))';
       svg.appendChild(path);
@@ -1038,6 +1083,224 @@ class TreeRenderer {
         canvas.appendChild(card);
         renderedIds.add(member.id);
       }
+    });
+
+  }
+
+  // Constrói o layout em Arco (Radial): os nós se abrem em leque para cima ou para baixo
+  // (definido pela orientação), proporcionalmente à ramificação de cada ramo.
+  buildRadialDOM(family) {
+    const CARD_W = 76;
+    const COUPLE_W = 160;
+    const CARD_H = 105;
+    const ANCHOR_Y = 34; // distância do topo do card até o centro do avatar
+
+    // Nós de layout: casais são agrupados em um único nó
+    class LayoutNode {
+      constructor(type, members) {
+        this.type = type; // 'single' ou 'couple'
+        this.members = members;
+        this.children = [];
+        this.parent = null;
+        this.depth = 0;
+        this.leaves = 1;
+        this.angle = 0;
+        this.a0 = 0;
+        this.a1 = 0;
+        this.px = 0;
+        this.py = 0;
+      }
+      get nodeWidth() { return this.type === 'couple' ? COUPLE_W : CARD_W; }
+    }
+
+    const nodes = [];
+    const memberToNode = new Map();
+    const visitedMembers = new Set();
+
+    // Agrupa parceiros em casais e cria nós de layout
+    family.members.forEach(m => {
+      if (visitedMembers.has(m.id)) return;
+
+      const partnerId = m.partnerId || (family.members.find(p => p.partnerId === m.id) || {}).id;
+      if (partnerId && !visitedMembers.has(partnerId)) {
+        const partner = family.members.find(p => p.id === partnerId);
+        if (partner) {
+          const coupleNode = new LayoutNode('couple', [m, partner]);
+          nodes.push(coupleNode);
+          memberToNode.set(m.id, coupleNode);
+          memberToNode.set(partner.id, coupleNode);
+          visitedMembers.add(m.id);
+          visitedMembers.add(partner.id);
+          return;
+        }
+      }
+
+      const singleNode = new LayoutNode('single', [m]);
+      nodes.push(singleNode);
+      memberToNode.set(m.id, singleNode);
+      visitedMembers.add(m.id);
+    });
+
+    // Estabelece relações pai-filho entre os nós (protegido contra ciclos)
+    nodes.forEach(node => {
+      const parentId = node.members[0].parentId || (node.members[1] ? node.members[1].parentId : null);
+      if (!parentId) return;
+      const parentNode = memberToNode.get(parentId);
+      if (!parentNode || parentNode === node) return;
+
+      let ancestor = parentNode;
+      while (ancestor && ancestor !== node) ancestor = ancestor.parent;
+      if (ancestor === node) return;
+
+      node.parent = parentNode;
+      if (!parentNode.children.includes(node)) {
+        parentNode.children.push(node);
+      }
+    });
+
+    // Ordena irmãos por data de nascimento (mais velho à esquerda)
+    nodes.forEach(n => {
+      n.children.sort((a, b) => {
+        const da = a.members[0].birthDate || '9999';
+        const db = b.members[0].birthDate || '9999';
+        return da.localeCompare(db);
+      });
+    });
+
+    const roots = nodes.filter(n => !n.parent);
+    if (roots.length === 0) return;
+
+    // Coloca o fundador/raiz principal no início
+    let mainRoot = memberToNode.get(family.rootMemberId);
+    while (mainRoot && mainRoot.parent) mainRoot = mainRoot.parent;
+    const mainIdx = roots.indexOf(mainRoot);
+    if (mainIdx > 0) {
+      roots.splice(mainIdx, 1);
+      roots.unshift(mainRoot);
+    }
+
+    // Calcula recursivamente o peso das ramificações (folhas)
+    const countLeaves = (n) => {
+      if (n.children.length === 0) {
+        n.leaves = 1;
+        return 1;
+      }
+      n.leaves = n.children.reduce((sum, c) => sum + countLeaves(c), 0);
+      return n.leaves;
+    };
+    
+    // Determina a profundidade de cada nível
+    const setDepth = (n, d) => {
+      n.depth = d;
+      n.children.forEach(c => setDepth(c, d + 1));
+    };
+
+    // Distribui o ângulo do pai entre os filhos de forma proporcional
+    const assignAngles = (n, a0, a1) => {
+      n.a0 = a0;
+      n.a1 = a1;
+      n.angle = (a0 + a1) / 2;
+      let cursor = a0;
+      n.children.forEach(c => {
+        const slice = (a1 - a0) * (c.leaves / n.leaves);
+        assignAngles(c, cursor, cursor + slice);
+        cursor += slice;
+      });
+    };
+
+    // Direção de crescimento vertical (bottom-up cresce para cima, top-down para baixo)
+    const grow = this.orientation === 'bottom-up' ? -1 : 1;
+
+    const placedNodes = [];
+    let treeOffsetX = 0;
+    const TREE_GAP = 160;
+
+    roots.forEach(root => {
+      countLeaves(root);
+      setDepth(root, 0);
+
+      // Abertura da copa proporcional à quantidade de filhos/ramos (máx ~170 graus)
+      const spread = Math.min(Math.PI * 0.92, Math.max(Math.PI / 5, root.leaves * (Math.PI / 6.5)));
+      assignAngles(root, -spread / 2, spread / 2);
+
+      const treeNodes = [];
+      const stack = [root];
+      while (stack.length) {
+        const n = stack.pop();
+        treeNodes.push(n);
+        n.children.forEach(c => stack.push(c));
+      }
+
+      // Calcula os raios de cada nível de geração
+      // Adicionamos um espaçamento livre de 100px para acomodar possíveis cartões de cônjuges
+      const siblingSpacing = 100;
+      const baseStep = 240;
+      const maxDepth = Math.max(...treeNodes.map(n => n.depth));
+      const radii = [0];
+      for (let d = 1; d <= maxDepth; d++) {
+        let required = 0;
+        treeNodes.forEach(n => {
+          if (n.depth !== d) return;
+          const wedge = n.a1 - n.a0;
+          if (wedge > 0) {
+            required = Math.max(required, (n.nodeWidth + siblingSpacing) / wedge);
+          }
+        });
+        radii[d] = Math.max(radii[d - 1] + baseStep, required);
+      }
+
+      // Converte coordenadas polares em cartesianas
+      treeNodes.forEach(n => {
+        const r = radii[n.depth] || 0;
+        n.px = Math.sin(n.angle) * r;
+        n.py = grow * Math.cos(n.angle) * r;
+      });
+
+      // Se houver múltiplas subárvores desconectadas, posiciona lado a lado
+      let tMinX = Infinity, tMaxX = -Infinity;
+      treeNodes.forEach(n => {
+        tMinX = Math.min(tMinX, n.px - n.nodeWidth / 2);
+        tMaxX = Math.max(tMaxX, n.px + n.nodeWidth / 2);
+      });
+      treeNodes.forEach(n => { n.px += treeOffsetX - tMinX; });
+      treeOffsetX += (tMaxX - tMinX) + TREE_GAP;
+
+      placedNodes.push(...treeNodes);
+    });
+
+    // Cria o canvas e normaliza coordenadas
+    const canvas = document.createElement('div');
+    canvas.className = 'tree-radial-canvas';
+    canvas.style.position = 'relative';
+
+    const PADDING = 100;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    placedNodes.forEach(n => {
+      minX = Math.min(minX, n.px - n.nodeWidth / 2);
+      maxX = Math.max(maxX, n.px + n.nodeWidth / 2);
+      minY = Math.min(minY, n.py - ANCHOR_Y);
+      maxY = Math.max(maxY, n.py - ANCHOR_Y + CARD_H);
+    });
+
+    const shiftX = PADDING - minX;
+    const shiftY = PADDING - minY;
+    canvas.style.width = `${(maxX - minX) + PADDING * 2}px`;
+    canvas.style.height = `${(maxY - minY) + PADDING * 2}px`;
+
+    // Renderiza cada nó (card individual ou casal) absolutamente posicionado
+    placedNodes.forEach(node => {
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'tree-node-group';
+      groupDiv.style.position = 'absolute';
+      groupDiv.style.left = `${node.px + shiftX - node.nodeWidth / 2}px`;
+      groupDiv.style.top = `${node.py + shiftY - ANCHOR_Y}px`;
+
+      const partnersDiv = document.createElement('div');
+      partnersDiv.className = 'tree-node-partners';
+      node.members.forEach(m => partnersDiv.appendChild(this.createCard(m, family.rootMemberId)));
+      groupDiv.appendChild(partnersDiv);
+
+      canvas.appendChild(groupDiv);
     });
 
     this.container.appendChild(canvas);

@@ -779,6 +779,9 @@ class App {
     const btnToggleDiagonal = document.getElementById('btn-toggle-diagonal');
     if (btnToggleDiagonal) btnToggleDiagonal.addEventListener('click', () => this.treeRenderer.toggleDiagonal());
 
+    const btnToggleRadial = document.getElementById('btn-toggle-radial');
+    if (btnToggleRadial) btnToggleRadial.addEventListener('click', () => this.treeRenderer.toggleRadial());
+
     const btnToggleLineStyle = document.getElementById('btn-toggle-line-style');
     if (btnToggleLineStyle) btnToggleLineStyle.addEventListener('click', () => this.treeRenderer.toggleLineStyle());
 

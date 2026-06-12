@@ -681,6 +681,29 @@ main {
   background: linear-gradient(90deg, var(--accent-emerald), var(--accent-pink));
 }
 
+/* === Modo Radial / Arco: cartões em posição absoluta === */
+.tree-container.tree-radial {
+}
+
+.tree-radial-canvas {
+  display: block;
+  flex-shrink: 0;
+}
+
+.tree-container.tree-radial .tree-node-partners {
+  flex-direction: row;
+  gap: 8px;
+}
+
+.tree-container.tree-radial .tree-node-partners::after {
+  top: 30px;
+  left: 38px;
+  right: 38px;
+  height: 3px;
+  width: auto;
+  background: linear-gradient(90deg, var(--accent-emerald), var(--accent-pink));
+}
+
 .tree-card {
   width: 76px;
   background: transparent;
