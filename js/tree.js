@@ -212,9 +212,24 @@ class TreeRenderer {
     const currentIndex = modes.indexOf(this.axis);
     this.axis = modes[(currentIndex + 1) % modes.length];
     localStorage.setItem('tree_axis', this.axis);
+    this.updateAxisButton();
     if (this.currentFamily) {
       this.render(this.currentFamily);
     }
+  }
+
+  // Atualiza o ícone e tooltip do botão de layout para refletir o modo atual.
+  updateAxisButton() {
+    const btn = document.getElementById('btn-toggle-layout');
+    if (!btn) return;
+    const labels = {
+      vertical:   { icon: '⇅',  title: 'Layout: Vertical  →  clique para Horizontal' },
+      horizontal: { icon: '⇄',  title: 'Layout: Horizontal  →  clique para Diagonal 45°' },
+      diagonal:   { icon: '🌲', title: 'Layout: Diagonal 45°  →  clique para Vertical' },
+    };
+    const info = labels[this.axis] || labels.vertical;
+    btn.textContent = info.icon;
+    btn.title = info.title;
   }
 
   centerOnFounder() {
@@ -686,6 +701,9 @@ class TreeRenderer {
       this.container.appendChild(levelContainer);
     });
     } // fim do bloco else (layouts em níveis)
+
+    // Sincroniza o ícone do botão com o modo atual (importante na primeira carga)
+    this.updateAxisButton();
 
     // Esconde enquanto calcula a posição correta (evita flash no canto superior esquerdo)
     this.container.style.opacity = '0';
