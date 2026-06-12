@@ -263,6 +263,7 @@ main {
   display: flex;
   flex-direction: column;
   position: relative;
+  min-height: 0; /* permite que flex-children encolham abaixo do conteúdo */
 }
 
 .screen {
@@ -1343,8 +1344,14 @@ main {
 
   .dashboard-screen {
     padding: 0.5rem 0.5rem 0;
-    height: calc(100vh - 52px); /* navbar fixa ~52px; garante que a tela caiba */
-    max-height: calc(100vh - 52px);
+    /* dvh = dynamic viewport height: desconta a barra do navegador automaticamente.
+       svh = small viewport height: valor quando a barra está totalmente visível.
+       Isso evita que o layout estoure quando o Chrome mostra a barra de URL/nav. */
+    height: calc(100vh - 56px);      /* fallback para navegadores sem suporte a dvh */
+    height: calc(100dvh - 56px);     /* desktop Chrome/Firefox modernos */
+    height: calc(100svh - 56px);     /* Android Chrome: garante que caiba mesmo c/ UI visível */
+    max-height: calc(100svh - 56px);
+    min-height: 0;
     overflow: hidden;
     gap: 0.5rem;
     flex-direction: column;
@@ -1388,12 +1395,11 @@ main {
   
   .tree-workspace {
     flex: 1;           /* workspace ocupa o espaço restante após header e controles */
-    min-height: 200px;
+    min-height: 0;     /* permite encolher abaixo do conteúdo para dar espaço aos controles */
     max-height: none;
     height: auto;
     border-radius: var(--radius-md);
     padding: 0;
-    /* touch-action: none herda do desktop, JS controla tudo */
   }
 
   .tree-container {
