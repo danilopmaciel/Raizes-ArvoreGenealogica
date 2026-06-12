@@ -206,30 +206,57 @@ class TreeRenderer {
     }
   }
 
-  // Alterna o eixo de crescimento: vertical → horizontal → diagonal → vertical.
+  // Alterna entre layout Vertical e Horizontal (botão ⇄).
   toggleAxis() {
-    const modes = ['vertical', 'horizontal', 'diagonal'];
-    const currentIndex = modes.indexOf(this.axis);
-    this.axis = modes[(currentIndex + 1) % modes.length];
+    // Sai do diagonal antes de alternar vertical/horizontal
+    if (this.axis === 'diagonal') this.axis = this._prevAxis || 'vertical';
+    this.axis = this.axis === 'vertical' ? 'horizontal' : 'vertical';
     localStorage.setItem('tree_axis', this.axis);
     this.updateAxisButton();
+    this.updateDiagonalButton();
     if (this.currentFamily) {
       this.render(this.currentFamily);
     }
   }
 
-  // Atualiza o ícone e tooltip do botão de layout para refletir o modo atual.
+  // Ativa/desativa o modo Diagonal 45° (botão 🌲).
+  toggleDiagonal() {
+    if (this.axis === 'diagonal') {
+      // Desativa: volta ao modo anterior
+      this.axis = this._prevAxis || 'vertical';
+    } else {
+      // Ativa: guarda o modo atual para restaurar depois
+      this._prevAxis = this.axis;
+      this.axis = 'diagonal';
+    }
+    localStorage.setItem('tree_axis', this.axis);
+    this.updateAxisButton();
+    this.updateDiagonalButton();
+    if (this.currentFamily) {
+      this.render(this.currentFamily);
+    }
+  }
+
+  // Atualiza o botão ⇄ (Vertical / Horizontal).
   updateAxisButton() {
     const btn = document.getElementById('btn-toggle-layout');
     if (!btn) return;
-    const labels = {
-      vertical:   { icon: '⇅',  title: 'Layout: Vertical  →  clique para Horizontal' },
-      horizontal: { icon: '⇄',  title: 'Layout: Horizontal  →  clique para Diagonal 45°' },
-      diagonal:   { icon: '🌲', title: 'Layout: Diagonal 45°  →  clique para Vertical' },
-    };
-    const info = labels[this.axis] || labels.vertical;
-    btn.textContent = info.icon;
-    btn.title = info.title;
+    const isH = this.axis === 'horizontal';
+    btn.textContent = '⇄';
+    btn.title = isH
+      ? 'Layout Horizontal — clique para Vertical'
+      : 'Layout Vertical — clique para Horizontal';
+  }
+
+  // Atualiza o botão 🌲 (Diagonal 45°), acendendo-o quando ativo.
+  updateDiagonalButton() {
+    const btn = document.getElementById('btn-toggle-diagonal');
+    if (!btn) return;
+    const isActive = this.axis === 'diagonal';
+    btn.classList.toggle('active', isActive);
+    btn.title = isActive
+      ? 'Diagonal 45° ativo — clique para desativar'
+      : 'Ativar Visualização Diagonal 45°';
   }
 
   centerOnFounder() {
@@ -702,8 +729,9 @@ class TreeRenderer {
     });
     } // fim do bloco else (layouts em níveis)
 
-    // Sincroniza o ícone do botão com o modo atual (importante na primeira carga)
+    // Sincroniza os botões com o modo atual (importante na primeira carga)
     this.updateAxisButton();
+    this.updateDiagonalButton();
 
     // Esconde enquanto calcula a posição correta (evita flash no canto superior esquerdo)
     this.container.style.opacity = '0';
