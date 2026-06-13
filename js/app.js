@@ -4,7 +4,7 @@ import AuthManager from './auth.js?v=20260607_02';
 import StorageManager from './storage.js?v=20260607_02';
 import FamilyManager from './family.js?v=20260607_02';
 import ModalManager from './modal.js?v=20260607_02';
-import TreeRenderer from './tree.js?v=20260612_03';
+import TreeRenderer from './tree.js?v=20260612_04';
 import supabaseAdapterInstance from './supabase.js?v=20260607_02';
 import firebaseAdapterInstance from './firebase.js?v=20260607_02';
 
@@ -776,11 +776,8 @@ class App {
     const btnToggleLayout = document.getElementById('btn-toggle-layout');
     if (btnToggleLayout) btnToggleLayout.addEventListener('click', () => this.treeRenderer.toggleAxis());
 
-    const btnToggleDiagonal = document.getElementById('btn-toggle-diagonal');
-    if (btnToggleDiagonal) btnToggleDiagonal.addEventListener('click', () => this.treeRenderer.toggleDiagonal());
-
-    const btnToggleRadial = document.getElementById('btn-toggle-radial');
-    if (btnToggleRadial) btnToggleRadial.addEventListener('click', () => this.treeRenderer.toggleRadial());
+    const btnToggleViewMode = document.getElementById('btn-toggle-viewmode');
+    if (btnToggleViewMode) btnToggleViewMode.addEventListener('click', () => this.treeRenderer.cycleViewMode());
 
     const btnToggleLineStyle = document.getElementById('btn-toggle-line-style');
     if (btnToggleLineStyle) btnToggleLineStyle.addEventListener('click', () => this.treeRenderer.toggleLineStyle());

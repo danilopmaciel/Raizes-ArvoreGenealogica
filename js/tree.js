@@ -213,48 +213,49 @@ class TreeRenderer {
       this.axis = this._prevAxis || 'vertical';
     }
     this.axis = this.axis === 'vertical' ? 'horizontal' : 'vertical';
-    localStorage.setItem('tree_axis', this.axis);
-    this.updateAxisButton();
-    this.updateDiagonalButton();
-    this.updateRadialButton();
-    if (this.currentFamily) {
-      this.render(this.currentFamily);
-    }
+    this._applyAxisChange();
   }
 
-  // Ativa/desativa o modo Diagonal 45° (botão 🌲).
-  toggleDiagonal() {
+  // Botão único de visualização: circula Normal → Diagonal 45° 🌲 → Arco 🌳 → Normal.
+  cycleViewMode() {
     if (this.axis === 'diagonal') {
-      // Desativa: volta ao modo anterior
+      this.axis = 'radial';
+    } else if (this.axis === 'radial') {
       this.axis = this._prevAxis || 'vertical';
     } else {
-      // Ativa: guarda o modo atual para restaurar depois
+      // Guarda o modo normal atual para restaurar ao fim do ciclo
       this._prevAxis = this.axis;
       this.axis = 'diagonal';
     }
-    localStorage.setItem('tree_axis', this.axis);
-    this.updateAxisButton();
-    this.updateDiagonalButton();
-    this.updateRadialButton();
-    if (this.currentFamily) {
-      this.render(this.currentFamily);
-    }
+    this._applyAxisChange();
   }
 
-  // Ativa/desativa o modo Radial em Arco (botão 🌳).
-  toggleRadial() {
-    if (this.axis === 'radial') {
-      // Desativa: volta ao modo anterior
+  // Ativa/desativa o modo Diagonal 45° diretamente (uso programático).
+  toggleDiagonal() {
+    if (this.axis === 'diagonal') {
       this.axis = this._prevAxis || 'vertical';
     } else {
-      // Ativa: guarda o modo atual para restaurar depois
-      this._prevAxis = this.axis;
+      if (this.axis !== 'radial') this._prevAxis = this.axis;
+      this.axis = 'diagonal';
+    }
+    this._applyAxisChange();
+  }
+
+  // Ativa/desativa o modo Radial em Arco diretamente (uso programático).
+  toggleRadial() {
+    if (this.axis === 'radial') {
+      this.axis = this._prevAxis || 'vertical';
+    } else {
+      if (this.axis !== 'diagonal') this._prevAxis = this.axis;
       this.axis = 'radial';
     }
+    this._applyAxisChange();
+  }
+
+  _applyAxisChange() {
     localStorage.setItem('tree_axis', this.axis);
     this.updateAxisButton();
-    this.updateDiagonalButton();
-    this.updateRadialButton();
+    this.updateViewModeButton();
     if (this.currentFamily) {
       this.render(this.currentFamily);
     }
@@ -271,26 +272,21 @@ class TreeRenderer {
       : 'Layout Vertical — clique para Horizontal';
   }
 
-  // Atualiza o botão 🌲 (Diagonal 45°), acendendo-o quando ativo.
-  updateDiagonalButton() {
-    const btn = document.getElementById('btn-toggle-diagonal');
+  // Atualiza o botão único de visualização (🌲 Diagonal / 🌳 Arco), acendendo-o quando ativo.
+  updateViewModeButton() {
+    const btn = document.getElementById('btn-toggle-viewmode');
     if (!btn) return;
-    const isActive = this.axis === 'diagonal';
-    btn.classList.toggle('active', isActive);
-    btn.title = isActive
-      ? 'Diagonal 45° ativo — clique para desativar'
-      : 'Ativar Visualização Diagonal 45°';
-  }
-
-  // Atualiza o botão 🌳 (Arco), acendendo-o quando ativo.
-  updateRadialButton() {
-    const btn = document.getElementById('btn-toggle-radial');
-    if (!btn) return;
-    const isActive = this.axis === 'radial';
-    btn.classList.toggle('active', isActive);
-    btn.title = isActive
-      ? 'Visualização em Arco ativa — clique para desativar'
-      : 'Ativar Visualização em Arco (Arredondada)';
+    btn.classList.toggle('active', this.axis === 'diagonal' || this.axis === 'radial');
+    if (this.axis === 'diagonal') {
+      btn.textContent = '🌲';
+      btn.title = 'Diagonal 45° ativo — clique para o modo Arco';
+    } else if (this.axis === 'radial') {
+      btn.textContent = '🌳';
+      btn.title = 'Arco (radial) ativo — clique para voltar ao normal';
+    } else {
+      btn.textContent = '🌲';
+      btn.title = 'Alternar visualização: Diagonal 45° e Arco';
+    }
   }
 
   centerOnFounder() {
@@ -824,8 +820,7 @@ class TreeRenderer {
 
     // Sincroniza os botões com o modo atual (importante na primeira carga)
     this.updateAxisButton();
-    this.updateDiagonalButton();
-    this.updateRadialButton();
+    this.updateViewModeButton();
 
     // Esconde enquanto calcula a posição correta (evita flash no canto superior esquerdo)
     this.container.style.opacity = '0';
@@ -1195,14 +1190,20 @@ class TreeRenderer {
       n.children.forEach(c => setDepth(c, d + 1));
     };
 
-    // Distribui o ângulo do pai entre os filhos de forma proporcional
+    // Distribui o ângulo do pai entre os filhos proporcionalmente à ramificação.
+    // O peso usa a RAIZ QUADRADA das folhas: ramos pesados ainda abrem mais, mas
+    // irmãos sem descendentes não ficam espremidos numa fatia mínima — o que
+    // explodiria o raio do anel inteiro e deixaria a árvore esparsa demais.
     const assignAngles = (n, a0, a1) => {
       n.a0 = a0;
       n.a1 = a1;
       n.angle = (a0 + a1) / 2;
+      if (n.children.length === 0) return;
+      const weights = n.children.map(c => Math.sqrt(c.leaves));
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
       let cursor = a0;
-      n.children.forEach(c => {
-        const slice = (a1 - a0) * (c.leaves / n.leaves);
+      n.children.forEach((c, i) => {
+        const slice = (a1 - a0) * (weights[i] / totalWeight);
         assignAngles(c, cursor, cursor + slice);
         cursor += slice;
       });
@@ -1219,8 +1220,11 @@ class TreeRenderer {
       countLeaves(root);
       setDepth(root, 0);
 
-      // Abertura da copa proporcional à quantidade de filhos/ramos (máx ~170 graus)
-      const spread = Math.min(Math.PI * 0.92, Math.max(Math.PI / 5, root.leaves * (Math.PI / 6.5)));
+      // Abertura da copa proporcional à quantidade de filhos/ramos. Famílias
+      // grandes abrem até ~205°: os ramos extremos passam da horizontal e
+      // curvam levemente para baixo, como numa copa de árvore real — e o
+      // arco maior deixa a árvore inteira bem mais compacta.
+      const spread = Math.min(Math.PI * 1.14, Math.max(Math.PI / 5, root.leaves * (Math.PI / 6.5)));
       assignAngles(root, -spread / 2, spread / 2);
 
       const treeNodes = [];
@@ -1231,21 +1235,29 @@ class TreeRenderer {
         n.children.forEach(c => stack.push(c));
       }
 
-      // Calcula os raios de cada nível de geração
-      // Adicionamos um espaçamento livre de 100px para acomodar possíveis cartões de cônjuges
-      const siblingSpacing = 100;
-      const baseStep = 240;
+      // Calcula os raios de cada nível de geração. O raio mínimo de um anel é
+      // determinado pelos PARES DE VIZINHOS reais: a distância angular entre os
+      // centros de dois nós adjacentes precisa comportar a metade de cada card
+      // mais uma folga. É bem menos pessimista que medir cada setor isolado, e
+      // mantém a árvore compacta sem nenhuma sobreposição.
+      const siblingGap = 36;
+      const baseStep = 230;
       const maxDepth = Math.max(...treeNodes.map(n => n.depth));
       const radii = [0];
       for (let d = 1; d <= maxDepth; d++) {
+        const ring = treeNodes
+          .filter(n => n.depth === d)
+          .sort((a, b) => a.angle - b.angle);
         let required = 0;
-        treeNodes.forEach(n => {
-          if (n.depth !== d) return;
-          const wedge = n.a1 - n.a0;
-          if (wedge > 0) {
-            required = Math.max(required, (n.nodeWidth + siblingSpacing) / wedge);
+        for (let i = 1; i < ring.length; i++) {
+          const prev = ring[i - 1];
+          const curr = ring[i];
+          const deltaAngle = curr.angle - prev.angle;
+          if (deltaAngle > 0.0001) {
+            const needed = (prev.nodeWidth / 2 + curr.nodeWidth / 2 + siblingGap) / deltaAngle;
+            required = Math.max(required, needed);
           }
-        });
+        }
         radii[d] = Math.max(radii[d - 1] + baseStep, required);
       }
 
