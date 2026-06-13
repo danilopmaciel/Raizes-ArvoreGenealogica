@@ -893,7 +893,6 @@ class TreeRenderer {
           pathD = `M ${childX} ${childY} C ${midX} ${childY}, ${midX} ${parentY}, ${parentX} ${parentY}`;
         }
       } else if (this.axis === 'diagonal' || this.axis === 'radial') {
-        // Bezier suave — aspecto de galhos de árvore, como no esboço
         const childCX = childPos.x + childCard.offsetWidth / 2;
         const parentCX = parentRect.x + parentRect.width / 2;
         let organicChildY, organicParentY;
@@ -904,12 +903,17 @@ class TreeRenderer {
           organicChildY = childPos.y + childCard.offsetHeight;
           organicParentY = parentRect.y;
         }
-        // Curva cúbica: sai verticalmente do pai e chega verticalmente no filho,
-        // criando o aspecto orgânico de galhos que se abrem.
-        const dy = organicChildY - organicParentY;
-        const cp1y = organicParentY + dy * 0.45;
-        const cp2y = organicChildY - dy * 0.45;
-        pathD = `M ${parentCX} ${organicParentY} C ${parentCX} ${cp1y}, ${childCX} ${cp2y}, ${childCX} ${organicChildY}`;
+        if (this.lineStyle === 'orthogonal') {
+          // Estilo reto (botão ⚡): segmento direto entre pai e filho
+          pathD = `M ${parentCX} ${organicParentY} L ${childCX} ${organicChildY}`;
+        } else {
+          // Curva cúbica: sai verticalmente do pai e chega verticalmente no filho,
+          // criando o aspecto orgânico de galhos que se abrem.
+          const dy = organicChildY - organicParentY;
+          const cp1y = organicParentY + dy * 0.45;
+          const cp2y = organicChildY - dy * 0.45;
+          pathD = `M ${parentCX} ${organicParentY} C ${parentCX} ${cp1y}, ${childCX} ${cp2y}, ${childCX} ${organicChildY}`;
+        }
       } else {
         const childX = childPos.x + childCard.offsetWidth / 2;
         const parentX = parentRect.x + parentRect.width / 2;
@@ -1238,32 +1242,53 @@ class TreeRenderer {
       // Calcula os raios de cada nível de geração. O raio mínimo de um anel é
       // determinado pelos PARES DE VIZINHOS reais: a distância angular entre os
       // centros de dois nós adjacentes precisa comportar a metade de cada card
-      // mais uma folga. É bem menos pessimista que medir cada setor isolado, e
-      // mantém a árvore compacta sem nenhuma sobreposição.
-      const siblingGap = 36;
-      const baseStep = 230;
+      // mais uma folga. Quando uma geração lotada exigiria um raio muito maior,
+      // o anel é ESCALONADO: os nós alternam entre dois sub-raios (como folhas
+      // num galho), o que dobra o espaço angular disponível e mantém a árvore
+      // próxima do tronco.
+      const siblingGap = 24;
+      const baseStep = 165;
+      const staggerStep = 180; // separação radial entre os dois sub-raios escalonados
       const maxDepth = Math.max(...treeNodes.map(n => n.depth));
-      const radii = [0];
+      const ringOuter = [0]; // raio externo ocupado por cada anel
       for (let d = 1; d <= maxDepth; d++) {
         const ring = treeNodes
           .filter(n => n.depth === d)
           .sort((a, b) => a.angle - b.angle);
-        let required = 0;
-        for (let i = 1; i < ring.length; i++) {
-          const prev = ring[i - 1];
-          const curr = ring[i];
-          const deltaAngle = curr.angle - prev.angle;
-          if (deltaAngle > 0.0001) {
-            const needed = (prev.nodeWidth / 2 + curr.nodeWidth / 2 + siblingGap) / deltaAngle;
-            required = Math.max(required, needed);
+        const base = ringOuter[d - 1] + baseStep;
+
+        // Raio exigido com todos os nós no mesmo círculo (vizinhos imediatos)
+        const requiredAt = (gapIndexes) => {
+          let req = 0;
+          for (let i = gapIndexes; i < ring.length; i++) {
+            const prev = ring[i - gapIndexes];
+            const curr = ring[i];
+            const deltaAngle = curr.angle - prev.angle;
+            if (deltaAngle > 0.0001) {
+              req = Math.max(req, (prev.nodeWidth / 2 + curr.nodeWidth / 2 + siblingGap) / deltaAngle);
+            }
           }
+          return req;
+        };
+
+        const reqFlat = requiredAt(1);
+        if (reqFlat <= base || ring.length < 4) {
+          // Cabe num círculo só
+          const r = Math.max(base, reqFlat);
+          ring.forEach(n => { n.radius = r; });
+          ringOuter[d] = r;
+        } else {
+          // Escalonado: só vizinhos do MESMO sub-raio (2 posições de distância)
+          // limitam o raio; entre sub-raios a separação radial garante a folga.
+          const r = Math.max(base, requiredAt(2));
+          ring.forEach((n, i) => { n.radius = r + (i % 2) * staggerStep; });
+          ringOuter[d] = r + staggerStep;
         }
-        radii[d] = Math.max(radii[d - 1] + baseStep, required);
       }
 
       // Converte coordenadas polares em cartesianas
       treeNodes.forEach(n => {
-        const r = radii[n.depth] || 0;
+        const r = n.radius || 0;
         n.px = Math.sin(n.angle) * r;
         n.py = grow * Math.cos(n.angle) * r;
       });
