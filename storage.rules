@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// ============================================================================
+// Regras de segurança do Firebase Storage — projeto raizes-9e7b7
+// Guarda as FOTOS dos membros (antes eram base64 no Firestore/localStorage).
+//
+// COMO APLICAR (ação sua, no console):
+//   1. Ative o Storage, se ainda não estiver:
+//      https://console.firebase.google.com/project/raizes-9e7b7/storage
+//   2. Cole estas regras em Storage -> Rules -> Publicar.
+//
+// PRIVACIDADE: a URL de download gerada pelo Storage carrega um token longo e
+// não-adivinhável. Essa URL fica salva no documento do membro no Firestore, que
+// só membros da família conseguem ler (ver firestore.rules). Logo, quem não é da
+// família não recebe a URL e não vê a foto. A leitura exige usuário autenticado;
+// a escrita exige login, tipo de imagem e tamanho < 5 MB.
+// ============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Fotos dos membros: families/{familyId}/photos/{arquivo}
+    match /families/{familyId}/photos/{photo} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // Qualquer outro caminho: negado por padrão.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

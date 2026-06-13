@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260613_02';
-import StorageManager from './storage.js?v=20260613_02';
-import FamilyManager from './family.js?v=20260613_02';
-import ModalManager from './modal.js?v=20260613_02';
-import TreeRenderer from './tree.js?v=20260613_02';
-import supabaseAdapterInstance from './supabase.js?v=20260613_02';
-import firebaseAdapterInstance from './firebase.js?v=20260613_02';
+import AuthManager from './auth.js?v=20260613_03';
+import StorageManager from './storage.js?v=20260613_03';
+import FamilyManager from './family.js?v=20260613_03';
+import ModalManager from './modal.js?v=20260613_03';
+import TreeRenderer from './tree.js?v=20260613_03';
+import supabaseAdapterInstance from './supabase.js?v=20260613_03';
+import firebaseAdapterInstance from './firebase.js?v=20260613_03';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -1407,15 +1407,29 @@ class App {
       return;
     }
 
-    // Torna a foto permanente: se ainda for uma URL externa, baixa e converte para
-    // base64 antes de salvar, para que não dependa de um link que pode expirar.
-    if (/^https?:\/\//i.test(photo)) {
+    // Torna a foto permanente: se ainda for uma URL externa (link de terceiros que
+    // pode expirar), baixa e converte para base64. URLs do próprio Firebase Storage
+    // são permanentes e ficam como estão.
+    const isOwnStorageUrl = /firebasestorage\.googleapis\.com|\.firebasestorage\.app/i.test(photo);
+    if (/^https?:\/\//i.test(photo) && !isOwnStorageUrl) {
       ModalManager.showToast('Salvando a foto de forma permanente...', 'success');
       const dataUrl = await this.resolvePhotoToDataUrl(photo);
       if (dataUrl) {
         photo = dataUrl;
       } else {
         ModalManager.showToast('Não foi possível baixar a imagem do link; ele será salvo como referência.', 'error');
+      }
+    }
+
+    // Sobe fotos novas (base64) para o Firebase Storage e guarda só a URL — evita
+    // inflar o Firestore/localStorage com imagens grandes. Se o Storage não estiver
+    // disponível, mantém o base64 (comportamento antigo) como fallback.
+    if (photo && photo.startsWith('data:') && firebaseAdapterInstance.hasStorage()) {
+      try {
+        ModalManager.showToast('Enviando foto…', 'success');
+        photo = await firebaseAdapterInstance.uploadPhoto(this.activeFamily.id, photo);
+      } catch (e) {
+        console.warn('Falha ao enviar foto ao Storage; mantendo localmente:', e);
       }
     }
 

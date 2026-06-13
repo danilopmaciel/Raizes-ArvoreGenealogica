@@ -5,6 +5,7 @@ class FirebaseAdapter {
     this.db = null;
     this.app = null;
     this.auth = null;
+    this.storage = null;
     this.configured = false;
   }
 
@@ -30,6 +31,14 @@ class FirebaseAdapter {
       } catch (e) {
         console.warn('Firebase Auth não pôde ser inicializado:', e);
       }
+      // Inicializa o Storage (fotos), se o SDK estiver carregado
+      try {
+        if (window.firebase.storage) {
+          this.storage = window.firebase.storage(this.app);
+        }
+      } catch (e) {
+        console.warn('Firebase Storage não pôde ser inicializado:', e);
+      }
       this.configured = true;
 
       // Persiste as chaves no localStorage para reconexão automática
@@ -50,6 +59,7 @@ class FirebaseAdapter {
   disconnect() {
     this.db = null;
     this.auth = null;
+    this.storage = null;
     if (this.app) {
       try { this.app.delete(); } catch(e){}
       this.app = null;
@@ -263,6 +273,35 @@ class FirebaseAdapter {
       try { await this.db.collection('raizes_family_index').doc(String(code).toUpperCase()).delete(); } catch (e) {}
     }
     await this.db.collection('raizes_families').doc(familyId).delete();
+  }
+
+  // ======================= FOTOS (Firebase Storage) =======================
+  hasStorage() {
+    return !!this.storage;
+  }
+
+  // Sobe uma foto (data URL base64) para o Storage e devolve a URL pública de
+  // download. Guardar a URL (e não o base64) mantém os documentos do Firestore
+  // pequenos e não estoura o limite do localStorage.
+  async uploadPhoto(familyId, dataUrl) {
+    if (!this.storage) throw new Error('Armazenamento de fotos indisponível.');
+    if (!dataUrl || !dataUrl.startsWith('data:')) throw new Error('Imagem inválida.');
+    const photoId = 'ph_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const path = `families/${familyId || 'sem-familia'}/photos/${photoId}.webp`;
+    const ref = this.storage.ref(path);
+    const blob = await (await fetch(dataUrl)).blob();
+    const snap = await ref.put(blob, { contentType: blob.type || 'image/webp' });
+    return await snap.ref.getDownloadURL();
+  }
+
+  // Remove uma foto do Storage a partir da sua URL de download (best-effort).
+  async deletePhotoByUrl(url) {
+    if (!this.storage || !url) return;
+    try {
+      await this.storage.refFromURL(url).delete();
+    } catch (e) {
+      // Foto inexistente / URL externa: ignora silenciosamente.
+    }
   }
 
   // Tenta reconectar automaticamente usando os dados salvos
