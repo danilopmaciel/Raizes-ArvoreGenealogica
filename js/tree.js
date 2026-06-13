@@ -455,23 +455,9 @@ class TreeRenderer {
       generationMap[partner.id] = 2;
     }
 
-    // Inicialização heurística inteligente baseada no domínio da família Minatel Bertonha
-    family.members.forEach(m => {
-      if (m.id === founder.id || (partner && m.id === partner.id)) return;
-
-      const nameLower = (m.name || '').toLowerCase();
-      const roleLower = (m.role || '').toLowerCase();
-
-      // Avós (Geração 0)
-      if (nameLower.includes('aparecida') || nameLower.includes('abilio')) {
-        generationMap[m.id] = 0;
-      }
-      // Tios e Pais da família Bertonha (Geração 1)
-      else if (nameLower.includes('bertonha') && (roleLower.includes('irmã') || roleLower.includes('irmão') || roleLower.includes('tio') || roleLower.includes('tia') || roleLower.includes('pai') || roleLower.includes('mãe'))) {
-        generationMap[m.id] = 1;
-      }
-    });
-
+    // As gerações são derivadas puramente dos vínculos parentId/partnerId pela
+    // propagação BFS abaixo — funciona para qualquer família, sem heurística
+    // específica de nomes.
     let changed = true;
     let iterations = 0;
     const maxIterations = 100;

@@ -4,7 +4,7 @@ import AuthManager from './auth.js?v=20260607_02';
 import StorageManager from './storage.js?v=20260607_02';
 import FamilyManager from './family.js?v=20260607_02';
 import ModalManager from './modal.js?v=20260607_02';
-import TreeRenderer from './tree.js?v=20260612_06';
+import TreeRenderer from './tree.js?v=20260613_01';
 import supabaseAdapterInstance from './supabase.js?v=20260607_02';
 import firebaseAdapterInstance from './firebase.js?v=20260607_02';
 
@@ -43,20 +43,21 @@ class App {
       this.showDebug('❌ Dados insuficientes para excluir');
       return;
     }
-    const confirmed = confirm(`Tem certeza que deseja excluir ${this.editingMember.name}?`);
-    if (confirmed) {
-      this.showDebug('✅ Usuário confirmou exclusão');
-      const deletedName = this.editingMember.name;
-      const deletedId = this.editingMember.id;
-      FamilyManager.deleteMember(this.activeFamily.id, this.editingMember.id);
-      this.recordAudit('excluiu', { id: deletedId, name: deletedName });
-      ModalManager.showToast('Membro excluído!', 'success');
-      ModalManager.closeModal('modal-member');
-      this.activeFamily = StorageManager.getActiveFamily();
-      this.renderTree();
-    } else {
-      this.showDebug('❌ Usuário cancelou');
-    }
+    const deletedName = this.editingMember.name;
+    const deletedId = this.editingMember.id;
+    ModalManager.confirm(
+      `Tem certeza que deseja excluir <strong>${this._esc(deletedName)}</strong>?`,
+      () => {
+        this.showDebug('✅ Usuário confirmou exclusão');
+        FamilyManager.deleteMember(this.activeFamily.id, deletedId);
+        this.recordAudit('excluiu', { id: deletedId, name: deletedName });
+        ModalManager.showToast('Membro excluído!', 'success');
+        ModalManager.closeModal('modal-member');
+        this.activeFamily = StorageManager.getActiveFamily();
+        this.renderTree();
+      },
+      { title: 'Excluir Membro', confirmText: 'Excluir' }
+    );
   }
 
   async init() {
@@ -365,28 +366,29 @@ class App {
   handleLeaveFamily() {
     if (!this.activeFamily) return;
     const fam = this.activeFamily;
-    const confirmed = confirm(
-      `Deseja sair da família "${fam.name}"?\n\n` +
-      `Ela deixará de aparecer na sua conta neste aparelho. Isso NÃO altera a árvore para os outros membros, ` +
-      `e você pode voltar quando quiser usando o código ${fam.code}.`
+    ModalManager.confirm(
+      `Deseja sair da família "<strong>${this._esc(fam.name)}</strong>"?<br><br>` +
+      `Ela deixará de aparecer na sua conta neste aparelho. Isso <strong>não</strong> altera a árvore para os outros membros, ` +
+      `e você pode voltar quando quiser usando o código <strong>${this._esc(fam.code)}</strong>.`,
+      () => {
+        this.recordAudit('saiu da família', { name: fam.name });
+        StorageManager.leaveFamily(fam.id);
+        ModalManager.showToast(`Você saiu da família "${fam.name}".`, 'success');
+
+        // Seleciona outra família restante ou volta ao onboarding
+        const remaining = StorageManager.getFamilies();
+        if (remaining.length > 0) {
+          StorageManager.setActiveFamily(remaining[0].id);
+          this.activeFamily = StorageManager.getActiveFamily();
+          this.showScreen('dashboard-screen');
+          this.renderTree();
+        } else {
+          this.activeFamily = null;
+          this.showScreen('onboarding-screen');
+        }
+      },
+      { title: 'Sair da Família', confirmText: 'Sair', confirmBtnClass: 'btn-primary', confirmBtnStyle: 'min-width: 100px;' }
     );
-    if (!confirmed) return;
-
-    this.recordAudit('saiu da família', { name: fam.name });
-    StorageManager.leaveFamily(fam.id);
-    ModalManager.showToast(`Você saiu da família "${fam.name}".`, 'success');
-
-    // Seleciona outra família restante ou volta ao onboarding
-    const remaining = StorageManager.getFamilies();
-    if (remaining.length > 0) {
-      StorageManager.setActiveFamily(remaining[0].id);
-      this.activeFamily = StorageManager.getActiveFamily();
-      this.showScreen('dashboard-screen');
-      this.renderTree();
-    } else {
-      this.activeFamily = null;
-      this.showScreen('onboarding-screen');
-    }
   }
 
   renderTree() {
@@ -394,118 +396,35 @@ class App {
       document.getElementById('family-title-text').textContent = this.activeFamily.name;
       document.getElementById('family-code-text').textContent = this.activeFamily.code;
 
-      // Auto-healing / Correção Cirúrgica de Dados Específicos
+      // Higiene de dados GENÉRICA (vale para qualquer família). Apenas normaliza
+      // estruturas e remove inconsistências derivadas dos próprios vínculos —
+      // nunca reescreve relações com base em nomes específicos.
       if (this.activeFamily.members && this.activeFamily.members.length > 1) {
         let modified = false;
         const membersMap = new Map(this.activeFamily.members.map(m => [m.id, m]));
-        
-        // 1. Localiza os familiares da família Minatel Bertonha
-        const danilo = this.activeFamily.members.find(m => m.id === 'mem_1779128298378' || (m.name && m.name.includes('Danilo') && m.name.includes('Maciel')));
-        const bruna = this.activeFamily.members.find(m => m.id === 'mem_1779132818275_qrj1f' || (m.name && m.name.includes('Bruna') && m.name.includes('Miho')));
-        const theo = this.activeFamily.members.find(m => m.id === 'mem_1779147209590_ve62w' || (m.name && m.name.includes('Theo') && m.name.includes('Ryu')));
-        const mae = this.activeFamily.members.find(m => m.id === 'mem_1779147405702_d8hbw' || (m.name && m.name.includes('Maria') && m.name.includes('Lucia') && m.name.includes('Bertonha')));
-        const avo = this.activeFamily.members.find(m => m.id === 'mem_1779147493182_5drsp' || (m.name && m.name.includes('Aparecida') && m.name.includes('Minatel')));
 
-        // 2. Garante que childrenIds sejam sempre arrays válidos
+        // 1. Garante que childrenIds sejam sempre arrays válidos
         this.activeFamily.members.forEach(m => {
           if (!m.childrenIds || !Array.isArray(m.childrenIds)) {
             m.childrenIds = [];
+            modified = true;
           }
         });
 
-        // 3. Corrige Danilo: filho de Maria Lucia, parceiro de Bruna, pai de Theo
-        if (danilo) {
-          if (mae && danilo.parentId !== mae.id) {
-            danilo.parentId = mae.id;
-            modified = true;
-          }
-          if (bruna && danilo.partnerId !== bruna.id) {
-            danilo.partnerId = bruna.id;
-            modified = true;
-          }
-          if (theo && !danilo.childrenIds.includes(theo.id)) {
-            danilo.childrenIds.push(theo.id);
-            modified = true;
-          }
-        }
-
-        // 4. Corrige Bruna: sem parentId direto no tronco central, parceira de Danilo, mãe de Theo
-        if (bruna) {
-          if (bruna.parentId !== null) {
-            bruna.parentId = null;
-            modified = true;
-          }
-          if (danilo && bruna.partnerId !== danilo.id) {
-            bruna.partnerId = danilo.id;
-            modified = true;
-          }
-          if (theo && !bruna.childrenIds.includes(theo.id)) {
-            bruna.childrenIds.push(theo.id);
-            modified = true;
-          }
-        }
-
-        // 5. Corrige Theo: filho biológico do CASAL Danilo + Bruna (liga aos dois)
-        if (theo) {
-          if (danilo && theo.parentId !== danilo.id) {
-            theo.parentId = danilo.id;
-            modified = true;
-          }
-          if (bruna && theo.parentId2 !== bruna.id) {
-            theo.parentId2 = bruna.id;
-            modified = true;
-          }
-        }
-
-        // 6. Corrige Maria Lucia (mãe): filha de Aparecida, mãe de Danilo
-        if (mae) {
-          if (avo && mae.parentId !== avo.id) {
-            mae.parentId = avo.id;
-            modified = true;
-          }
-          if (danilo && !mae.childrenIds.includes(danilo.id)) {
-            mae.childrenIds.push(danilo.id);
-            modified = true;
-          }
-        }
-
-        // 7. Corrige Aparecida (avó): mãe de Maria Lucia
-        if (avo) {
-          if (mae && !avo.childrenIds.includes(mae.id)) {
-            avo.childrenIds.push(mae.id);
-            modified = true;
-          }
-        }
-
-        // 8. Vincula tios Bertonha à avó Aparecida se houver
+        // 2. Remove de childrenIds referências quebradas ou que não apontam de
+        //    volta para este membro como pai/mãe (consistência cruzada)
         this.activeFamily.members.forEach(m => {
-          if (avo && mae && m.name && m.name.includes('Bertonha') && m.id !== mae.id && m.id !== avo.id && (m.role === 'Irmão' || m.role === 'Irmã' || m.role === 'Tio' || m.role === 'Tia')) {
-            if (m.parentId !== avo.id) {
-              m.parentId = avo.id;
-              modified = true;
-            }
-            if (!avo.childrenIds.includes(m.id)) {
-              avo.childrenIds.push(m.id);
-              modified = true;
-            }
+          const validChildren = m.childrenIds.filter(childId => {
+            const child = membersMap.get(childId);
+            return child && (child.parentId === m.id || child.parentId2 === m.id);
+          });
+          if (validChildren.length !== m.childrenIds.length) {
+            m.childrenIds = validChildren;
+            modified = true;
           }
         });
 
-        // Limpeza de inconsistências cruzadas geral para todos os membros
-        this.activeFamily.members.forEach(m => {
-          if (m.childrenIds) {
-            const validChildren = m.childrenIds.filter(childId => {
-              const child = membersMap.get(childId);
-              return child && (child.parentId === m.id || child.parentId2 === m.id);
-            });
-            if (validChildren.length !== m.childrenIds.length) {
-              m.childrenIds = validChildren;
-              modified = true;
-            }
-          }
-        });
-
-        // Limpeza automática de fotos legadas do Unsplash ou SVGs corrompidos com aspas duplas (substituindo pela silhueta limpa URL-encoded)
+        // 3. Limpa fotos legadas (Unsplash de demo ou SVG inline corrompido)
         this.activeFamily.members.forEach(m => {
           if (m.photo && (m.photo.includes('unsplash.com') || m.photo.includes('<svg'))) {
             m.photo = DEFAULT_SILHOUETTE;
@@ -514,8 +433,8 @@ class App {
         });
 
         if (modified) {
-          // Higiene de dados local: salva só no dispositivo, sem sincronizar a
-          // família inteira na nuvem a cada carregamento (economiza cota do banco).
+          // Salva só no dispositivo, sem sincronizar a família inteira na nuvem a
+          // cada carregamento (economiza cota do banco).
           StorageManager.saveFamilyLocal(this.activeFamily);
         }
       }
