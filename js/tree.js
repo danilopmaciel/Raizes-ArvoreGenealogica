@@ -999,6 +999,38 @@ class TreeRenderer {
       }
     });
 
+    // Vínculos de parceria entre cards renderizados em grupos separados
+    // (ex.: segundo casamento). Dentro do mesmo grupo a linha já existe via CSS;
+    // aqui desenhamos a união rosa para os pares que ficaram distantes.
+    const partnerDrawn = new Set();
+    family.members.forEach(member => {
+      if (!member.partnerId || partnerDrawn.has(member.id)) return;
+      const cardA = this.container.querySelector(`.tree-card[data-id="${member.id}"]`);
+      const cardB = this.container.querySelector(`.tree-card[data-id="${member.partnerId}"]`);
+      if (!cardA || !cardB) return;
+      const groupA = cardA.closest('.tree-node-partners');
+      const groupB = cardB.closest('.tree-node-partners');
+      if (groupA && groupA === groupB) return;
+      partnerDrawn.add(member.id);
+      partnerDrawn.add(member.partnerId);
+
+      const posA = getOffsetPos(cardA);
+      const posB = getOffsetPos(cardB);
+      const x1 = posA.x + cardA.offsetWidth / 2;
+      const y1 = posA.y + 30;
+      const x2 = posB.x + cardB.offsetWidth / 2;
+      const y2 = posB.y + 30;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#ec4899');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-dasharray', '4,4');
+      path.style.filter = 'drop-shadow(0 0 4px rgba(236, 72, 153, 0.45))';
+      svg.appendChild(path);
+    });
+
     this.container.appendChild(svg);
     setTimeout(() => this.centerOnFounder(), 100);
     // Garantia final: se o container ainda estiver invisível após 600ms, revela
@@ -1084,17 +1116,17 @@ class TreeRenderer {
       }
     });
 
+    this.container.appendChild(canvas);
   }
 
   // Constrói o layout em Arco (Radial): os nós se abrem em leque para cima ou para baixo
   // (definido pela orientação), proporcionalmente à ramificação de cada ramo.
   buildRadialDOM(family) {
     const CARD_W = 76;
-    const COUPLE_W = 160;
     const CARD_H = 105;
     const ANCHOR_Y = 34; // distância do topo do card até o centro do avatar
 
-    // Nós de layout: casais são agrupados em um único nó
+    // Nós de layout: casais (e grupos com mais parceiros) são um único nó
     class LayoutNode {
       constructor(type, members) {
         this.type = type; // 'single' ou 'couple'
@@ -1109,40 +1141,54 @@ class TreeRenderer {
         this.px = 0;
         this.py = 0;
       }
-      get nodeWidth() { return this.type === 'couple' ? COUPLE_W : CARD_W; }
+      // n cards de 76px com 8px de gap entre eles
+      get nodeWidth() { return this.members.length * 84 - 8; }
     }
 
     const nodes = [];
     const memberToNode = new Map();
     const visitedMembers = new Set();
 
-    // Agrupa parceiros em casais e cria nós de layout
+    // Agrupa parceiros em um único nó, incluindo parceiros TRANSITIVOS:
+    // num segundo casamento (A–B e A–C), os três viram um único grupo,
+    // em vez de C ficar boiando fora da árvore sem conexão.
     family.members.forEach(m => {
       if (visitedMembers.has(m.id)) return;
 
-      const partnerId = m.partnerId || (family.members.find(p => p.partnerId === m.id) || {}).id;
-      if (partnerId && !visitedMembers.has(partnerId)) {
-        const partner = family.members.find(p => p.id === partnerId);
-        if (partner) {
-          const coupleNode = new LayoutNode('couple', [m, partner]);
-          nodes.push(coupleNode);
-          memberToNode.set(m.id, coupleNode);
-          memberToNode.set(partner.id, coupleNode);
-          visitedMembers.add(m.id);
-          visitedMembers.add(partner.id);
-          return;
-        }
+      const group = [m];
+      const inGroup = new Set([m.id]);
+      const queue = [m];
+      while (queue.length) {
+        const cur = queue.pop();
+        family.members.forEach(p => {
+          if (inGroup.has(p.id) || visitedMembers.has(p.id)) return;
+          if (p.partnerId === cur.id || cur.partnerId === p.id) {
+            inGroup.add(p.id);
+            group.push(p);
+            queue.push(p);
+          }
+        });
       }
 
-      const singleNode = new LayoutNode('single', [m]);
-      nodes.push(singleNode);
-      memberToNode.set(m.id, singleNode);
-      visitedMembers.add(m.id);
+      // Com 3+ membros, o "hub" (quem tem mais vínculos de parceria) fica no meio
+      if (group.length > 2) {
+        const linkCount = (x) => group.filter(o => o !== x && (o.partnerId === x.id || x.partnerId === o.id)).length;
+        group.sort((a, b) => linkCount(a) - linkCount(b));
+        const hub = group.pop();
+        group.splice(Math.floor(group.length / 2), 0, hub);
+      }
+
+      const node = new LayoutNode(group.length > 1 ? 'couple' : 'single', group);
+      nodes.push(node);
+      group.forEach(x => {
+        memberToNode.set(x.id, node);
+        visitedMembers.add(x.id);
+      });
     });
 
     // Estabelece relações pai-filho entre os nós (protegido contra ciclos)
     nodes.forEach(node => {
-      const parentId = node.members[0].parentId || (node.members[1] ? node.members[1].parentId : null);
+      const parentId = node.members.map(x => x.parentId).find(Boolean) || null;
       if (!parentId) return;
       const parentNode = memberToNode.get(parentId);
       if (!parentNode || parentNode === node) return;
