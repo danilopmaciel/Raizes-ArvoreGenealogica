@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260607_02';
-import StorageManager from './storage.js?v=20260607_02';
-import FamilyManager from './family.js?v=20260607_02';
-import ModalManager from './modal.js?v=20260607_02';
-import TreeRenderer from './tree.js?v=20260613_01';
-import supabaseAdapterInstance from './supabase.js?v=20260607_02';
-import firebaseAdapterInstance from './firebase.js?v=20260607_02';
+import AuthManager from './auth.js?v=20260613_02';
+import StorageManager from './storage.js?v=20260613_02';
+import FamilyManager from './family.js?v=20260613_02';
+import ModalManager from './modal.js?v=20260613_02';
+import TreeRenderer from './tree.js?v=20260613_02';
+import supabaseAdapterInstance from './supabase.js?v=20260613_02';
+import firebaseAdapterInstance from './firebase.js?v=20260613_02';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -361,6 +361,12 @@ class App {
     if (btnLeaveFamily) {
       btnLeaveFamily.style.display = (screenId === 'dashboard-screen' && this.activeFamily) ? 'inline-flex' : 'none';
     }
+
+    // "⚙ Gerenciar" (excluir / bloquear acessos) só para o dono da família ativa
+    const btnManage = document.getElementById('btn-dashboard-manage');
+    if (btnManage) {
+      btnManage.style.display = (screenId === 'dashboard-screen' && this.isOwner(this.activeFamily)) ? 'inline-flex' : 'none';
+    }
   }
 
   handleLeaveFamily() {
@@ -388,6 +394,141 @@ class App {
         }
       },
       { title: 'Sair da Família', confirmText: 'Sair', confirmBtnClass: 'btn-primary', confirmBtnStyle: 'min-width: 100px;' }
+    );
+  }
+
+  // ============ Gerenciamento da família (somente dono) ============
+  openManageFamilyModal() {
+    const fam = this.activeFamily;
+    if (!fam || !this.isOwner(fam)) {
+      ModalManager.showToast('Apenas o criador da família pode gerenciá-la.', 'error');
+      return;
+    }
+    const codeEl = document.getElementById('manage-family-code');
+    if (codeEl) codeEl.textContent = fam.code;
+    this.renderManageLists();
+    ModalManager.openModal('modal-manage-family');
+  }
+
+  renderManageLists() {
+    const fam = this.activeFamily;
+    if (!fam) return;
+    const membersEl = document.getElementById('manage-members-list');
+    const blockedEl = document.getElementById('manage-blocked-list');
+
+    // Pessoas com acesso = membros que vincularam uma conta (têm linkedUserId).
+    // O dono aparece, mas não pode bloquear a si mesmo.
+    const linked = (fam.members || []).filter(m => m.linkedUserId);
+    if (membersEl) {
+      if (linked.length === 0) {
+        membersEl.innerHTML = '<p style="color: var(--text-muted);">Ninguém vinculou uma conta a esta família ainda.</p>';
+      } else {
+        membersEl.innerHTML = linked.map(m => {
+          const isMe = m.linkedUserId === (this.currentUser && this.currentUser.id);
+          const isOwnerCard = m.linkedUserId === fam.ownerUserId;
+          const tag = isOwnerCard ? ' <span style="color: var(--accent-emerald); font-size: 0.75rem;">(criador)</span>' : '';
+          const btn = (isMe || isOwnerCard)
+            ? ''
+            : `<button class="btn btn-secondary btn-block-user" data-uid="${this._esc(m.linkedUserId)}" data-name="${this._esc(m.name)}" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Bloquear</button>`;
+          return `<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.6rem; background: rgba(255,255,255,0.04); border-radius: 8px;">
+            <span>${this._esc(m.name)}${tag}</span>${btn}
+          </div>`;
+        }).join('');
+      }
+    }
+
+    const blocked = Array.isArray(fam.blockedUserIds) ? fam.blockedUserIds : [];
+    if (blockedEl) {
+      if (blocked.length === 0) {
+        blockedEl.innerHTML = '<p style="color: var(--text-muted);">Ninguém bloqueado.</p>';
+      } else {
+        blockedEl.innerHTML = blocked.map(uid => {
+          const card = (fam.members || []).find(m => m.linkedUserId === uid);
+          const label = card ? card.name : uid;
+          return `<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.6rem; background: rgba(239,68,68,0.08); border-radius: 8px;">
+            <span>${this._esc(label)}</span>
+            <button class="btn btn-secondary btn-unblock-user" data-uid="${this._esc(uid)}" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Desbloquear</button>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // (Re)liga os botões de bloquear/desbloquear
+    document.querySelectorAll('#manage-members-list .btn-block-user').forEach(btn => {
+      btn.onclick = () => this.handleBlockUser(btn.dataset.uid, btn.dataset.name);
+    });
+    document.querySelectorAll('#manage-blocked-list .btn-unblock-user').forEach(btn => {
+      btn.onclick = () => this.handleUnblockUser(btn.dataset.uid);
+    });
+  }
+
+  handleBlockUser(uid, name) {
+    const fam = this.activeFamily;
+    if (!fam || !this.isOwner(fam) || !uid) return;
+    ModalManager.confirm(
+      `Bloquear o acesso de <strong>${this._esc(name || 'esta pessoa')}</strong>? ` +
+      `Ela perderá o acesso à árvore e não conseguirá entrar de novo com o código.`,
+      async () => {
+        try {
+          await firebaseAdapterInstance.blockUser(fam.id, uid);
+          fam.blockedUserIds = [...new Set([...(fam.blockedUserIds || []), uid])];
+          fam.memberUserIds = (fam.memberUserIds || []).filter(u => u !== uid);
+          StorageManager.saveFamilyLocal(fam);
+          this.recordAudit('bloqueou acesso', { name: name || uid });
+          ModalManager.showToast('Acesso bloqueado.', 'success');
+          this.renderManageLists();
+        } catch (err) {
+          ModalManager.showToast('Falha ao bloquear: ' + err.message, 'error');
+        }
+      },
+      { title: 'Bloquear Acesso', confirmText: 'Bloquear' }
+    );
+  }
+
+  async handleUnblockUser(uid) {
+    const fam = this.activeFamily;
+    if (!fam || !this.isOwner(fam) || !uid) return;
+    try {
+      await firebaseAdapterInstance.unblockUser(fam.id, uid);
+      fam.blockedUserIds = (fam.blockedUserIds || []).filter(u => u !== uid);
+      StorageManager.saveFamilyLocal(fam);
+      ModalManager.showToast('Acesso desbloqueado. A pessoa pode entrar de novo com o código.', 'success');
+      this.renderManageLists();
+    } catch (err) {
+      ModalManager.showToast('Falha ao desbloquear: ' + err.message, 'error');
+    }
+  }
+
+  handleDeleteFamily() {
+    const fam = this.activeFamily;
+    if (!fam || !this.isOwner(fam)) return;
+    ModalManager.confirm(
+      `Excluir <strong>${this._esc(fam.name)}</strong> em definitivo?<br><br>` +
+      `A árvore inteira será apagada da nuvem para <strong>todos</strong> os membros. ` +
+      `Esta ação <strong>não pode ser desfeita</strong>.`,
+      async () => {
+        try {
+          await firebaseAdapterInstance.deleteFamily(fam.id, fam.code);
+          StorageManager.removeFamilyLocal(fam.id);
+          this.recordAudit('excluiu a família', { name: fam.name });
+          ModalManager.closeModal('modal-manage-family');
+          ModalManager.showToast(`Família "${fam.name}" excluída.`, 'success');
+
+          const remaining = StorageManager.getFamilies();
+          if (remaining.length > 0) {
+            StorageManager.setActiveFamily(remaining[0].id);
+            this.activeFamily = StorageManager.getActiveFamily();
+            this.showScreen('dashboard-screen');
+            this.renderTree();
+          } else {
+            this.activeFamily = null;
+            this.showScreen('onboarding-screen');
+          }
+        } catch (err) {
+          ModalManager.showToast('Falha ao excluir a família: ' + err.message, 'error');
+        }
+      },
+      { title: 'Excluir Família', confirmText: 'Excluir tudo' }
     );
   }
 
@@ -535,6 +676,16 @@ class App {
     const btnLeaveFamily = document.getElementById('navbar-leave-family-btn');
     if (btnLeaveFamily) {
       btnLeaveFamily.addEventListener('click', () => this.handleLeaveFamily());
+    }
+
+    // Gerenciar família (dono): abrir modal e excluir família
+    const btnManage = document.getElementById('btn-dashboard-manage');
+    if (btnManage) {
+      btnManage.addEventListener('click', () => this.openManageFamilyModal());
+    }
+    const btnDeleteFamily = document.getElementById('btn-delete-family');
+    if (btnDeleteFamily) {
+      btnDeleteFamily.addEventListener('click', () => this.handleDeleteFamily());
     }
 
     // Botão de Status da Nuvem
@@ -939,7 +1090,7 @@ class App {
     }
   }
 
-  handleJoinFamily(inviteCode, memberId = null) {
+  async handleJoinFamily(inviteCode, memberId = null) {
     if (!this.currentUser) {
       this.pendingInviteCode = inviteCode;
       this.pendingMemberId = memberId;
@@ -949,8 +1100,20 @@ class App {
     }
 
     try {
+      // Se a família ainda não está no dispositivo, busca/entra na nuvem pelo código.
+      // O acesso é recusado se o usuário tiver sido bloqueado pelo dono.
+      if (!StorageManager.findFamilyByCode(inviteCode) && firebaseAdapterInstance.isConfigured()) {
+        await firebaseAdapterInstance.joinFamilyByCode(inviteCode, this.currentUser.id);
+        await StorageManager.syncFromSupabase();
+      }
+
       const currentFamily = StorageManager.getActiveFamily();
       const conflictResult = FamilyManager.checkJoinConflict(inviteCode, currentFamily);
+
+      // Garante o vínculo de associação na nuvem (idempotente)
+      if (firebaseAdapterInstance.isConfigured()) {
+        firebaseAdapterInstance.ensureMembership(conflictResult.targetFamily.id, this.currentUser.id).catch(() => {});
+      }
 
       if (conflictResult.hasConflict) {
         document.getElementById('conflict-current-name').textContent = conflictResult.currentFamily.name;

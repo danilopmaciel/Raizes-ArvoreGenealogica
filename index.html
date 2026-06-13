@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raízes — Árvore Genealógica Premium</title>
   <meta name="description" content="Crie, gerencie e compartilhe sua árvore genealógica de forma interativa e elegante. Conecte gerações com o Raízes.">
-  <link rel="stylesheet" href="css/style.css?v=20260607_02">
+  <link rel="stylesheet" href="css/style.css?v=20260613_02">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -129,6 +129,7 @@
           <button id="btn-dashboard-invite" class="btn btn-emerald">
             <span>+ Convidar Familiares</span>
           </button>
+          <button id="btn-dashboard-manage" class="btn btn-secondary" title="Gerenciar família (acessos e exclusão)" style="display: none;">⚙ Gerenciar</button>
         </div>
       </div>
 
@@ -154,6 +155,43 @@
   </main>
 
   <!-- Modais -->
+
+  <!-- Modal: Gerenciar Família (somente dono) -->
+  <div id="modal-manage-family" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Gerenciar Família</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0;">
+          Apenas pessoas com o código <strong id="manage-family-code">RAIZ-XYZ</strong> conseguem entrar nesta família.
+          Você, como criador(a), pode bloquear o acesso de qualquer pessoa.
+        </p>
+
+        <h4 style="margin: 1rem 0 0.5rem;">Pessoas com acesso</h4>
+        <div id="manage-members-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <p style="color: var(--text-muted);">Carregando…</p>
+        </div>
+
+        <h4 style="margin: 1.25rem 0 0.5rem;">Acessos bloqueados</h4>
+        <div id="manage-blocked-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <p style="color: var(--text-muted);">Ninguém bloqueado.</p>
+        </div>
+
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-glass);">
+          <h4 style="color: #ef4444; margin: 0 0 0.5rem;">Zona de risco</h4>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0;">
+            Excluir a família apaga a árvore inteira da nuvem para todos os membros. Esta ação não pode ser desfeita.
+          </p>
+          <button id="btn-delete-family" class="btn" style="background: #ef4444; border-color: #dc2626; color: #fff;">Excluir esta família</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal">Fechar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Criar Família -->
   <div id="modal-create-family" class="modal-backdrop">
@@ -549,6 +587,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260613_01"></script>
+  <script type="module" src="js/app.js?v=20260613_02"></script>
 </body>
 </html>

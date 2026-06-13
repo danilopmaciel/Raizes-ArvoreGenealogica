@@ -1,41 +1,92 @@
 rules_version = '2';
 
-// Regras de segurança do Firestore para o projeto Raízes (raizes-9e7b7).
+// ============================================================================
+// Regras de segurança do Firestore — projeto raizes-9e7b7
+// PRIVACIDADE POR FAMÍLIA: cada família é visível apenas para quem tem acesso.
 //
-// CONTEXTO: o app é estático (GitHub Pages) e a apiKey do Firebase é pública por
-// design — ela NÃO é um segredo. A real barreira de segurança são ESTAS regras.
-// Antes elas estavam abertas (qualquer um lia/escrevia/apagava tudo via REST).
-// Agora, com login real (Firebase Auth), exigimos usuário autenticado.
+// COMO FUNCIONA O ACESSO
+//   - Cada família tem `memberUserIds` (UIDs com acesso) e `blockedUserIds`.
+//   - Quem tem o CÓDIGO da família consulta o índice público
+//     `raizes_family_index/{CODIGO}` -> descobre o familyId -> e se adiciona
+//     a si mesmo em `memberUserIds` (a menos que esteja bloqueado).
+//   - O DONO (`ownerUserId`) pode excluir a família e bloquear usuários.
 //
-// COMO PUBLICAR:
-//   Opção A (Console): Firebase Console -> Firestore Database -> Rules ->
-//                      colar este conteúdo -> Publicar.
-//   Opção B (CLI):     firebase deploy --only firestore:rules
-//
-// LIMITAÇÃO CONHECIDA: o modelo de dados é compartilhado (o app carrega TODAS as
-// famílias). Logo, qualquer usuário AUTENTICADO consegue ler/editar qualquer
-// família. Isolamento por família exigiria uma lista de membros (uids) por família
-// e reescrita do fluxo de leitura — fica como evolução futura.
+// ROLLOUT EM 2 PASSOS (importante p/ não se trancar para fora):
+//   1. PRIMEIRO entre no app já atualizado e logado UMA vez. Isso faz o app
+//      preencher `memberUserIds` das famílias antigas (backfill automático).
+//   2. SÓ DEPOIS publique ESTE arquivo:
+//      https://console.firebase.google.com/project/raizes-9e7b7/firestore/rules
+//      (cole tudo -> Publicar). Recomendado testar com uma segunda conta.
+// ============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Famílias: somente usuários autenticados.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function familyData(familyId) {
+      return get(/databases/$(database)/documents/raizes_families/$(familyId)).data;
+    }
+
+    function isMemberOf(familyId) {
+      return isSignedIn() && request.auth.uid in familyData(familyId).memberUserIds;
+    }
+
+    // Índice público código -> família. O CÓDIGO é o segredo compartilhado:
+    // quem o conhece pode descobrir o familyId para então entrar.
+    match /raizes_family_index/{code} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Famílias
     match /raizes_families/{familyId} {
-      allow read, write: if request.auth != null;
+      // Ler: só membros ou o dono. (As duas consultas do app — array-contains
+      // uid e ownerUserId == uid — são validadas por esta regra.)
+      allow read: if isSignedIn() && (
+           request.auth.uid in resource.data.memberUserIds
+        || resource.data.ownerUserId == request.auth.uid
+      );
+
+      // Criar: o criador é dono e já consta como membro.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.auth.uid in request.resource.data.memberUserIds;
+
+      // Atualizar:
+      //  - membros e dono podem editar a família;
+      //  - um usuário NÃO bloqueado pode se ADICIONAR (e somente a si mesmo)
+      //    em memberUserIds — é assim que se "entra pelo código".
+      allow update: if isSignedIn() && (
+           request.auth.uid in resource.data.memberUserIds
+        || resource.data.ownerUserId == request.auth.uid
+        || (
+             !(request.auth.uid in resource.data.get('blockedUserIds', []))
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUserIds'])
+             && request.resource.data.memberUserIds.hasAll(resource.data.memberUserIds)
+             && request.resource.data.memberUserIds.hasOnly(resource.data.memberUserIds.concat([request.auth.uid]))
+           )
+      );
+
+      // Excluir: somente o dono.
+      allow delete: if isSignedIn() && resource.data.ownerUserId == request.auth.uid;
     }
 
-    // Membros: somente usuários autenticados.
+    // Membros: acessíveis apenas a quem é membro da família correspondente.
     match /raizes_members/{memberId} {
-      allow read, write: if request.auth != null;
+      allow read:   if isMemberOf(resource.data.familyId);
+      allow create: if isMemberOf(request.resource.data.familyId);
+      allow update: if isMemberOf(resource.data.familyId)
+                    && isMemberOf(request.resource.data.familyId);
+      allow delete: if isMemberOf(resource.data.familyId);
     }
 
-    // Auditoria: append-only e identidade não forjável.
-    // - create exige que o userId gravado seja o do próprio usuário logado.
-    // - update/delete proibidos (o histórico não pode ser alterado/apagado).
+    // Auditoria: append-only; leitura só por membros; identidade não forjável.
     match /raizes_audit/{entryId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null
+      allow read:   if isMemberOf(resource.data.familyId);
+      allow create: if isSignedIn()
                     && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
