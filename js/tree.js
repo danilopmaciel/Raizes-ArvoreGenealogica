@@ -45,7 +45,7 @@ class TreeRenderer {
       if (e.deltaY < 0) {
         this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
       } else {
-        this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
+        this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.05);
       }
 
       this.translateX = mouseX - containerMouseX * this.zoomLevel;
@@ -122,7 +122,7 @@ class TreeRenderer {
           e.touches[0].clientY - e.touches[1].clientY
         );
         const factor = currentDistance / this.initialTouchDistance;
-        this.zoomLevel = Math.min(Math.max(this.initialZoom * factor, 0.15), 2.0);
+        this.zoomLevel = Math.min(Math.max(this.initialZoom * factor, 0.05), 2.0);
 
         // Zoom centrado no ponto da pinça
         this.translateX = this.pinchCenterX - this.containerPinchX * this.zoomLevel;
@@ -178,11 +178,11 @@ class TreeRenderer {
       const centerY = rect.height / 2;
       const containerCenterX = (centerX - this.translateX) / this.zoomLevel;
       const containerCenterY = (centerY - this.translateY) / this.zoomLevel;
-      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
+      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.05);
       this.translateX = centerX - containerCenterX * this.zoomLevel;
       this.translateY = centerY - containerCenterY * this.zoomLevel;
     } else {
-      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.15);
+      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.05);
     }
     this.updateTransform();
   }
@@ -303,39 +303,24 @@ class TreeRenderer {
       return;
     }
 
-    // Modo diagonal/radial: encaixa a ALTURA da árvore no workspace para todos os
-    // andares ficarem visíveis; centraliza no fundador horizontalmente.
+    // Modo diagonal/radial: encaixa a árvore INTEIRA no workspace, centrada nos
+    // dois eixos pelo meio geométrico do container (caber é prioridade sobre
+    // centralizar no fundador, que fica de lado e empurraria parte para fora).
     if (isAbs) {
-      const canvas = this.container.querySelector('.tree-diagonal-canvas') || this.container.querySelector('.tree-radial-canvas');
-      if (!canvas) { this.container.style.opacity = '1'; return; }
+      // Usa as dimensões reais do container (canvas + padding já incluídos)
+      const totalW = containerWidth;
+      const totalH = this.container.offsetHeight;
 
-      const canvasW = canvas.offsetWidth  || (containerWidth  > 128 ? containerWidth  - 128 : 400);
-      const canvasH = canvas.offsetHeight || 400;
-      const totalW  = canvasW + 128; // + 2×4rem de padding (esquerda + direita)
-      const totalH  = canvasH + 128; // + 2×4rem de padding (topo + base)
-
-      // Zoom baseado em altura: garante que todos os andares caibam verticalmente
+      // Menor zoom entre largura e altura (10% de margem); piso baixo (0.03) para
+      // caber mesmo famílias enormes.
       const fitZoomH = (workspaceHeight * 0.90) / totalH;
       const fitZoomW = (workspaceWidth  * 0.90) / totalW;
-      // Usa o menor dos dois para caber em ambas as dimensões quando a árvore for compacta
-      const targetZoom = Math.max(0.12, Math.min(1.0, Math.min(fitZoomH, fitZoomW * 1.5)));
+      const targetZoom = Math.max(0.03, Math.min(1.0, Math.min(fitZoomH, fitZoomW)));
       this.zoomLevel = targetZoom;
 
-      // Vertical: margem simétrica (árvore centrada verticalmente)
+      // Centraliza o conjunto nos dois eixos
+      this.translateX = (workspaceWidth  - totalW * targetZoom) / 2;
       this.translateY = Math.max(8, (workspaceHeight - totalH * targetZoom) / 2);
-
-      // Horizontal: centraliza no card do fundador (rootMember)
-      const founderCard = this.container.querySelector('.tree-card.root-member');
-      if (founderCard) {
-        let left = 0, el = founderCard;
-        while (el && el !== this.container) { left += el.offsetLeft; el = el.offsetParent; }
-        const partnersDiv = founderCard.closest('.tree-node-partners');
-        const coupleW = partnersDiv ? partnersDiv.offsetWidth : founderCard.offsetWidth;
-        const founderCenterX = left + coupleW / 2;
-        this.translateX = (workspaceWidth / 2) - founderCenterX * targetZoom;
-      } else {
-        this.translateX = (workspaceWidth - totalW * targetZoom) / 2;
-      }
 
       this.updateTransform();
       this.container.style.opacity = '1';
@@ -344,7 +329,7 @@ class TreeRenderer {
 
     // Calcula zoom para caber na largura do workspace (deixando 10% de margem)
     const targetZoom = (containerWidth > workspaceWidth * 0.9)
-      ? Math.max((workspaceWidth * 0.9) / containerWidth, 0.15)
+      ? Math.max((workspaceWidth * 0.9) / containerWidth, 0.05)
       : 1.0;
 
     // Em vez de centralizar no "fundador" (que pode ser assimétrico e deixar
