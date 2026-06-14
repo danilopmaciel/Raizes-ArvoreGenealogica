@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raízes — Árvore Genealógica Premium</title>
   <meta name="description" content="Crie, gerencie e compartilhe sua árvore genealógica de forma interativa e elegante. Conecte gerações com o Raízes.">
-  <link rel="stylesheet" href="css/style.css?v=20260613_03">
+  <link rel="stylesheet" href="css/style.css?v=20260614_01">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -130,6 +132,7 @@
           <button id="btn-dashboard-invite" class="btn btn-emerald">
             <span>+ Convidar Familiares</span>
           </button>
+          <button id="btn-dashboard-export" class="btn btn-secondary" title="Exportar ou imprimir a árvore">📥 Exportar</button>
           <button id="btn-dashboard-manage" class="btn btn-secondary" title="Gerenciar família (acessos e exclusão)" style="display: none;">⚙ Gerenciar</button>
         </div>
       </div>
@@ -156,6 +159,30 @@
   </main>
 
   <!-- Modais -->
+
+  <!-- Modal: Exportar / Imprimir árvore -->
+  <div id="modal-export" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Exportar Árvore</h3>
+        <button class="btn-close btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0;">
+          Gera uma imagem da árvore inteira no formato atual. Ótimo para imprimir, emoldurar ou compartilhar.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
+          <button id="btn-export-png" class="btn btn-emerald">🖼️ Baixar imagem (PNG)</button>
+          <button id="btn-export-pdf" class="btn btn-primary">📄 Baixar PDF</button>
+          <button id="btn-export-print" class="btn btn-secondary">🖨️ Imprimir</button>
+        </div>
+        <p id="export-status" style="color: var(--text-muted); font-size: 0.82rem; margin-top: 0.9rem; min-height: 1.2em;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal">Fechar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Gerenciar Família (somente dono) -->
   <div id="modal-manage-family" class="modal-backdrop">
@@ -588,6 +615,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=20260613_03"></script>
+  <script type="module" src="js/app.js?v=20260614_01"></script>
 </body>
 </html>

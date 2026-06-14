@@ -1,12 +1,12 @@
 // Controlador Principal da Aplicação (App.js)
 
-import AuthManager from './auth.js?v=20260613_03';
-import StorageManager from './storage.js?v=20260613_03';
-import FamilyManager from './family.js?v=20260613_03';
-import ModalManager from './modal.js?v=20260613_03';
-import TreeRenderer from './tree.js?v=20260613_03';
-import supabaseAdapterInstance from './supabase.js?v=20260613_03';
-import firebaseAdapterInstance from './firebase.js?v=20260613_03';
+import AuthManager from './auth.js?v=20260614_01';
+import StorageManager from './storage.js?v=20260614_01';
+import FamilyManager from './family.js?v=20260614_01';
+import ModalManager from './modal.js?v=20260614_01';
+import TreeRenderer from './tree.js?v=20260614_01';
+import supabaseAdapterInstance from './supabase.js?v=20260614_01';
+import firebaseAdapterInstance from './firebase.js?v=20260614_01';
 
 const DEFAULT_SILHOUETTE = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M12%2012c2.21%200%204-1.79%204-4s-1.79-4-4-4-4%201.79-4%204%201.79%204%204%204zm0%202c-2.67%200-8%201.34-8%204v2h16v-2c0-2.66-5.33-4-8-4z%22%2F%3E%3C%2Fsvg%3E';
 
@@ -532,6 +532,133 @@ class App {
     );
   }
 
+  // ============ Exportar / Imprimir a árvore ============
+  openExportModal() {
+    if (!this.activeFamily) return;
+    this._setExportStatus('');
+    ModalManager.openModal('modal-export');
+  }
+
+  _setExportStatus(msg) {
+    const el = document.getElementById('export-status');
+    if (el) el.textContent = msg || '';
+  }
+
+  // Rasteriza a árvore inteira (cards + conexões) numa imagem de alta resolução.
+  // Reseta temporariamente o zoom/pan para capturar tudo em tamanho nativo —
+  // como o modal cobre a tela, o usuário não vê o reposicionamento.
+  async _captureTreeCanvas() {
+    const container = document.getElementById('tree-container');
+    if (!container || !window.html2canvas) {
+      throw new Error('Recurso de exportação indisponível.');
+    }
+
+    const renderer = this.treeRenderer;
+    const prevOpacity = container.style.opacity;
+
+    // Tamanho real do layout (a caixa não é afetada pelo transform de escala)
+    const w = container.offsetWidth;
+    const h = container.offsetHeight;
+
+    // Escala de captura: nitidez alta, mas limita o lado maior a ~9000px
+    const scale = Math.max(1, Math.min(2, 9000 / Math.max(w, h)));
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const bg = isLight ? '#f8fafc' : '#0b1220';
+
+    container.style.transform = 'none';
+    container.style.opacity = '1';
+    // Aguarda dois frames para o layout assentar
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    try {
+      const canvas = await window.html2canvas(container, {
+        backgroundColor: bg,
+        scale,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h,
+        useCORS: true,
+        logging: false
+      });
+      return canvas;
+    } finally {
+      // Restaura o zoom/pan que o usuário tinha
+      container.style.opacity = prevOpacity;
+      renderer.updateTransform();
+    }
+  }
+
+  _exportFileName(ext) {
+    const base = (this.activeFamily && this.activeFamily.name ? this.activeFamily.name : 'arvore')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
+    const date = new Date().toISOString().split('T')[0];
+    return `arvore-${base || 'familia'}-${date}.${ext}`;
+  }
+
+  async exportTreePNG() {
+    try {
+      this._setExportStatus('Gerando imagem…');
+      const canvas = await this._captureTreeCanvas();
+      canvas.toBlob((blob) => {
+        if (!blob) { this._setExportStatus('Falha ao gerar a imagem.'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = this._exportFileName('png');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        this._setExportStatus('Imagem PNG baixada!');
+      }, 'image/png');
+    } catch (err) {
+      this._setExportStatus('Erro: ' + err.message);
+    }
+  }
+
+  async exportTreePDF() {
+    try {
+      this._setExportStatus('Gerando PDF…');
+      const canvas = await this._captureTreeCanvas();
+      const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+      if (!jsPDFCtor) { this._setExportStatus('Biblioteca de PDF indisponível.'); return; }
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const landscape = canvas.width >= canvas.height;
+      const pdf = new jsPDFCtor({ orientation: landscape ? 'landscape' : 'portrait', unit: 'pt', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+      const ratio = Math.min((pageW - margin * 2) / canvas.width, (pageH - margin * 2) / canvas.height);
+      const drawW = canvas.width * ratio;
+      const drawH = canvas.height * ratio;
+      pdf.addImage(imgData, 'JPEG', (pageW - drawW) / 2, (pageH - drawH) / 2, drawW, drawH);
+      pdf.save(this._exportFileName('pdf'));
+      this._setExportStatus('PDF baixado!');
+    } catch (err) {
+      this._setExportStatus('Erro: ' + err.message);
+    }
+  }
+
+  async printTree() {
+    try {
+      this._setExportStatus('Preparando impressão…');
+      const canvas = await this._captureTreeCanvas();
+      const imgData = canvas.toDataURL('image/png');
+      const w = window.open('', '_blank');
+      if (!w) { this._setExportStatus('Permita pop-ups para imprimir.'); return; }
+      const title = this.activeFamily ? this.activeFamily.name : 'Árvore Genealógica';
+      w.document.write(`<!DOCTYPE html><html><head><title>${this._esc(title)}</title>
+        <style>@page{margin:10mm;} html,body{margin:0;padding:0;} img{width:100%;height:auto;display:block;}</style>
+        </head><body><img src="${imgData}" onload="setTimeout(function(){window.focus();window.print();},200)"></body></html>`);
+      w.document.close();
+      this._setExportStatus('Janela de impressão aberta.');
+    } catch (err) {
+      this._setExportStatus('Erro: ' + err.message);
+    }
+  }
+
   renderTree() {
     if (this.activeFamily && this.treeRenderer) {
       document.getElementById('family-title-text').textContent = this.activeFamily.name;
@@ -677,6 +804,16 @@ class App {
     if (btnLeaveFamily) {
       btnLeaveFamily.addEventListener('click', () => this.handleLeaveFamily());
     }
+
+    // Exportar / imprimir a árvore
+    const btnExport = document.getElementById('btn-dashboard-export');
+    if (btnExport) btnExport.addEventListener('click', () => this.openExportModal());
+    const btnExportPng = document.getElementById('btn-export-png');
+    if (btnExportPng) btnExportPng.addEventListener('click', () => this.exportTreePNG());
+    const btnExportPdf = document.getElementById('btn-export-pdf');
+    if (btnExportPdf) btnExportPdf.addEventListener('click', () => this.exportTreePDF());
+    const btnExportPrint = document.getElementById('btn-export-print');
+    if (btnExportPrint) btnExportPrint.addEventListener('click', () => this.printTree());
 
     // Gerenciar família (dono): abrir modal e excluir família
     const btnManage = document.getElementById('btn-dashboard-manage');

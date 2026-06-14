@@ -16,8 +16,13 @@ class TreeRenderer {
     this.orientation = localStorage.getItem('tree_orientation') || 'top-down';
     this.lineStyle = localStorage.getItem('tree_line_style') || 'curved';
     // Eixo de crescimento da árvore: 'vertical' (gerações empilhadas de cima para
-    // baixo) ou 'horizontal' (gerações em colunas, da esquerda para a direita).
+    // baixo), 'horizontal' (colunas) ou 'radial' (leque). O modo 'diagonal' (45°)
+    // foi descontinuado — se estiver salvo, cai para 'vertical'.
     this.axis = localStorage.getItem('tree_axis') || 'vertical';
+    if (this.axis === 'diagonal') {
+      this.axis = 'vertical';
+      localStorage.setItem('tree_axis', this.axis);
+    }
 
     this.initControls();
   }
@@ -216,27 +221,15 @@ class TreeRenderer {
     this._applyAxisChange();
   }
 
-  // Botão único de visualização: circula Normal → Diagonal 45° 🌲 → Arco 🌳 → Normal.
+  // Botão único de visualização: alterna entre o layout normal e o Arco 🌳.
+  // (O modo Diagonal 45° foi descontinuado por não escalar bem.)
   cycleViewMode() {
-    if (this.axis === 'diagonal') {
-      this.axis = 'radial';
-    } else if (this.axis === 'radial') {
+    if (this.axis === 'radial') {
       this.axis = this._prevAxis || 'vertical';
     } else {
-      // Guarda o modo normal atual para restaurar ao fim do ciclo
+      // Guarda o modo normal atual para restaurar ao sair do Arco
       this._prevAxis = this.axis;
-      this.axis = 'diagonal';
-    }
-    this._applyAxisChange();
-  }
-
-  // Ativa/desativa o modo Diagonal 45° diretamente (uso programático).
-  toggleDiagonal() {
-    if (this.axis === 'diagonal') {
-      this.axis = this._prevAxis || 'vertical';
-    } else {
-      if (this.axis !== 'radial') this._prevAxis = this.axis;
-      this.axis = 'diagonal';
+      this.axis = 'radial';
     }
     this._applyAxisChange();
   }
@@ -272,21 +265,16 @@ class TreeRenderer {
       : 'Layout Vertical — clique para Horizontal';
   }
 
-  // Atualiza o botão único de visualização (🌲 Diagonal / 🌳 Arco), acendendo-o quando ativo.
+  // Atualiza o botão único de visualização (🌳 Arco), acendendo-o quando ativo.
   updateViewModeButton() {
     const btn = document.getElementById('btn-toggle-viewmode');
     if (!btn) return;
-    btn.classList.toggle('active', this.axis === 'diagonal' || this.axis === 'radial');
-    if (this.axis === 'diagonal') {
-      btn.textContent = '🌲';
-      btn.title = 'Diagonal 45° ativo — clique para o modo Arco';
-    } else if (this.axis === 'radial') {
-      btn.textContent = '🌳';
-      btn.title = 'Arco (radial) ativo — clique para voltar ao normal';
-    } else {
-      btn.textContent = '🌲';
-      btn.title = 'Alternar visualização: Diagonal 45° e Arco';
-    }
+    const isRadial = this.axis === 'radial';
+    btn.classList.toggle('active', isRadial);
+    btn.textContent = '🌳';
+    btn.title = isRadial
+      ? 'Arco (radial) ativo — clique para voltar ao normal'
+      : 'Ativar visualização em Arco (radial)';
   }
 
   centerOnFounder() {
@@ -1256,10 +1244,9 @@ class TreeRenderer {
       countLeaves(root);
       setDepth(root, 0);
 
-      // Abertura da copa proporcional à quantidade de filhos/ramos. Famílias
-      // grandes abrem até ~205°: os ramos extremos passam da horizontal e
-      // curvam levemente para baixo, como numa copa de árvore real — e o
-      // arco maior deixa a árvore inteira bem mais compacta.
+      // Abertura da copa proporcional à ramificação. Um leque moderado (~155°)
+      // mantém a raiz/tronco nítida embaixo com a primeira geração abrindo a copa,
+      // sem espalhar demais nem forçar os anéis a crescerem muito no raio.
       const spread = Math.min(Math.PI * 1.14, Math.max(Math.PI / 5, root.leaves * (Math.PI / 6.5)));
       assignAngles(root, -spread / 2, spread / 2);
 
@@ -1278,42 +1265,76 @@ class TreeRenderer {
       // o anel é ESCALONADO: os nós alternam entre dois sub-raios (como folhas
       // num galho), o que dobra o espaço angular disponível e mantém a árvore
       // próxima do tronco.
-      const siblingGap = 24;
-      const baseStep = 165;
-      const staggerStep = 180; // separação radial entre os dois sub-raios escalonados
+      const siblingGap = 18;
+      const vGap = 16;          // folga vertical entre cards
+      const baseStep = 158;
+      const staggerStep = 190;  // separação radial entre os dois sub-raios escalonados
       const maxDepth = Math.max(...treeNodes.map(n => n.depth));
       const ringOuter = [0]; // raio externo ocupado por cada anel
+
+      // Raio mínimo para um par de cards adjacentes (mesmo raio) NÃO se sobrepor.
+      // Os cards são retângulos alinhados ao eixo, então não colidem se a distância
+      // HORIZONTAL ≥ (somatório das meias-larguras) OU a VERTICAL ≥ altura do card.
+      // Como ambas as distâncias escalam com o raio, basta o menor raio que satisfaz
+      // uma das duas condições — geometria exata, sem aproximação de arco.
+      const pairRadius = (a, b) => {
+        const dSin = Math.abs(Math.sin(b.angle) - Math.sin(a.angle));
+        const dCos = Math.abs(Math.cos(b.angle) - Math.cos(a.angle));
+        const needX = a.nodeWidth / 2 + b.nodeWidth / 2 + siblingGap;
+        const needY = CARD_H + vGap;
+        const rX = dSin > 1e-6 ? needX / dSin : Infinity;
+        const rY = dCos > 1e-6 ? needY / dCos : Infinity;
+        return Math.min(rX, rY);
+      };
+
       for (let d = 1; d <= maxDepth; d++) {
         const ring = treeNodes
           .filter(n => n.depth === d)
           .sort((a, b) => a.angle - b.angle);
         const base = ringOuter[d - 1] + baseStep;
 
-        // Raio exigido com todos os nós no mesmo círculo (vizinhos imediatos)
-        const requiredAt = (gapIndexes) => {
+        // Raio mínimo para um círculo único onde NENHUM par (não só os vizinhos
+        // imediatos) se sobreponha — perto do topo do leque, nós em ângulos quase
+        // simétricos caem na mesma altura e precisam de folga horizontal.
+        const flatRadiusAll = () => {
           let req = 0;
-          for (let i = gapIndexes; i < ring.length; i++) {
-            const prev = ring[i - gapIndexes];
-            const curr = ring[i];
-            const deltaAngle = curr.angle - prev.angle;
-            if (deltaAngle > 0.0001) {
-              req = Math.max(req, (prev.nodeWidth / 2 + curr.nodeWidth / 2 + siblingGap) / deltaAngle);
+          for (let i = 0; i < ring.length; i++) {
+            for (let j = i + 1; j < ring.length; j++) {
+              req = Math.max(req, pairRadius(ring[i], ring[j]));
             }
           }
           return req;
         };
 
-        const reqFlat = requiredAt(1);
+        const reqFlat = flatRadiusAll();
         if (reqFlat <= base || ring.length < 4) {
-          // Cabe num círculo só
+          // Cabe num círculo só — geometria exata garante zero sobreposição
           const r = Math.max(base, reqFlat);
           ring.forEach(n => { n.radius = r; });
           ringOuter[d] = r;
         } else {
-          // Escalonado: só vizinhos do MESMO sub-raio (2 posições de distância)
-          // limitam o raio; entre sub-raios a separação radial garante a folga.
-          const r = Math.max(base, requiredAt(2));
-          ring.forEach((n, i) => { n.radius = r + (i % 2) * staggerStep; });
+          // Geração lotada: ESCALONA os nós em dois sub-raios (como folhas num
+          // galho) para compactar. Cresce o raio até NENHUM par colidir — testando
+          // TODOS os pares (inclusive entre sub-raios) com a geometria real dos
+          // retângulos, o que evita casais largos se tocando perto das bordas.
+          const assign = (rr) => ring.forEach((n, i) => { n.radius = rr + (i % 2) * staggerStep; });
+          const clears = () => {
+            for (let i = 0; i < ring.length; i++) {
+              const a = ring[i];
+              const ax = Math.sin(a.angle) * a.radius, ay = Math.cos(a.angle) * a.radius;
+              for (let j = i + 1; j < ring.length; j++) {
+                const b = ring[j];
+                const bx = Math.sin(b.angle) * b.radius, by = Math.cos(b.angle) * b.radius;
+                if (Math.abs(ax - bx) < (a.nodeWidth + b.nodeWidth) / 2 + siblingGap &&
+                    Math.abs(ay - by) < CARD_H + vGap) return false;
+              }
+            }
+            return true;
+          };
+          let r = base;
+          assign(r);
+          let guard = 0;
+          while (!clears() && guard++ < 120) { r += 28; assign(r); }
           ringOuter[d] = r + staggerStep;
         }
       }
