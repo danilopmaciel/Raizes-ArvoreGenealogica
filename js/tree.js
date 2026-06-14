@@ -1247,7 +1247,10 @@ class TreeRenderer {
       // Abertura da copa proporcional à ramificação. Um leque moderado (~155°)
       // mantém a raiz/tronco nítida embaixo com a primeira geração abrindo a copa,
       // sem espalhar demais nem forçar os anéis a crescerem muito no raio.
-      const spread = Math.min(Math.PI * 1.14, Math.max(Math.PI / 5, root.leaves * (Math.PI / 6.5)));
+      // Leque LIMITADO a ~150° (bem abaixo de 180°): assim nenhum ramo passa da
+      // horizontal e "enrola" para baixo ao lado da raiz. A árvore cresce sempre
+      // para cima, deixando a raiz (tronco) e a primeira geração nítidas na base.
+      const spread = Math.min(Math.PI * 0.83, Math.max(Math.PI / 5, root.leaves * (Math.PI / 6.5)));
       assignAngles(root, -spread / 2, spread / 2);
 
       const treeNodes = [];
@@ -1268,6 +1271,10 @@ class TreeRenderer {
       const siblingGap = 18;
       const vGap = 16;          // folga vertical entre cards
       const baseStep = 158;
+      // A PRIMEIRA geração ganha um anel bem mais afastado da raiz: isso destaca
+      // o tronco/raiz, dá espaço para as linhas de filiação abrirem em leque sem
+      // amontoar, e deixa a base da árvore nítida e organizada.
+      const firstGenStep = 300;
       const staggerStep = 190;  // separação radial entre os dois sub-raios escalonados
       const maxDepth = Math.max(...treeNodes.map(n => n.depth));
       const ringOuter = [0]; // raio externo ocupado por cada anel
@@ -1291,7 +1298,8 @@ class TreeRenderer {
         const ring = treeNodes
           .filter(n => n.depth === d)
           .sort((a, b) => a.angle - b.angle);
-        const base = ringOuter[d - 1] + baseStep;
+        const step = d === 1 ? firstGenStep : baseStep;
+        const base = ringOuter[d - 1] + step;
 
         // Raio mínimo para um círculo único onde NENHUM par (não só os vizinhos
         // imediatos) se sobreponha — perto do topo do leque, nós em ângulos quase
